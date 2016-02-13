@@ -1,0 +1,7 @@
+	process original polygon points
+	process into different polygons
+		find the way with smallest polygon of biggest size
+	process into proper polygon path
+	determine proper drone path for each polygon in waypoints
+	connect polygons drone paths
++	export list of commands to drone to waypoints file
