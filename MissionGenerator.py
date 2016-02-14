@@ -15,7 +15,7 @@ class MissionGenerator:
 		elif index >= 0 and index <= len(self.commands):
 			self.commands.insert(index, command)
 		else:
-			print 'OoB on call to add_command'
+			print 'Out of bounds on call to add_command'
 
 	def del_command(self, index=None):
 		if index is None:
@@ -23,7 +23,7 @@ class MissionGenerator:
 		elif index >= 0 and index < len(self.commands):
 			del self.commands[index]
 		else:
-			print 'OoB on call to del_command'
+			print 'Out of bounds on call to del_command'
 
 	def export_to_file(self, file_name):
 		output = 'QGC WPL 110\n'
