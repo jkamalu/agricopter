@@ -1,12 +1,12 @@
 class Vertex:
 
 	""" 
-	Vertex {
+	Vertex { [
 		index, 
 		latitude, 
 		longitude, 
 		altitude,  
-	}
+	] }
 	
 	"""
 
@@ -14,6 +14,10 @@ class Vertex:
 		self.attributes = []
 
 class PolygonParser:
+
+	"""
+	Utility class to generate original polygon from input file.
+	"""
 
 	def __init__(self):
 		self.vertices = []
@@ -26,12 +30,10 @@ class PolygonParser:
 			if line:
 				line = line.split('|')
 				vertex = Vertex()
-				count = 0
 				for val in line:
 					try:
 						val = float(val)
-						vertex.attributes.insert(count, val)
-						count = count + 1
+						vertex.attributes.append(count)
 					except:
 						continue
 				self.vertices.append(vertex)
@@ -39,6 +41,10 @@ class PolygonParser:
 				break
 		file_in.close()
 
+	def get_polygon(self):
+		return self.vertices
+
 if __name__ == '__main__':
 	p = PolygonParser()
 	p.parse('isep.txt')
+	print p.get_polygon()
