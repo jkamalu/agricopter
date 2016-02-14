@@ -11,22 +11,32 @@ import pdb
 def decompose(polygon):
     """
     Generates boustrophedon decompositions of the given polygon,
-    using lines passed through the polygon at all angles that are
-    multiples of 15 degrees. Selects the "best" decomposition
-    based on a simple heuristic (described in the code below).
+    passing a line from left to right while rotating the polygon
+    at all angles that are multiples of 15 degrees. Selects the
+    "best" rotation angle based on a simple heuristic (described
+    in the code below).
 
-    Returns a tuple: (best_decomposition, angle)
-     -- where best_decomposition is a list of Polygon objects
-        that represent the cells of the decomposition
-     -- and angle is the angle with which a line was passed through
-        the polygon to generate that decomposition, following the
-        convention of a unit circle (i.e. 0 degrees = moving to the
-        right, 90 degrees = moving up, etc.)
+    Returns a tuple: (best_decomposition, angle, rotate_point)
+     -- best_decomposition is a list of Polygon objects
+        that represent the cells of the decomposition. These
+        polygons will still be rotated by the given angle when
+        they are returned. This makes the job of oxpath.py easier.
+        However, the path should be rotated back to the correct
+        orientation before it is actually used to generate a drone
+        mission.
+     -- angle is the angle by which the polygon was rotated in the
+        best decomposition. It follows the convention of a unit
+        circle (i.e. an increasing angle means rotating CCW).
+     -- rotate_point is the point about which the polygon was
+        rotated. In order to get the returned polygons back to
+        their original orientation, they need to be rotated
+        -angle degrees about the rotate_point.
     """
     decompositions = []
     for angle in xrange(0, 180, 15):
-        decompositions.append(
-            (decompose_helper(polygon, angle), angle))
+        decomposition = decompose_helper(polygon, angle)
+        decompositions.append((decomposition[0], angle,
+                               decomposition[1]))
 
     # Choose the best decomposition, using the size of the
     # smallest polygon in the decomposition as a heuristic, and
@@ -43,20 +53,25 @@ def decompose(polygon):
 def decompose_helper(polygon, angle=0):
     """
     Decomposes the given Polygon into cells that can be easily
-    covered by a simple, "ox-like" path. Returns a list of the
-    decomposed cells (as Polygons).
+    covered by a simple, "ox-like" path.
 
     In order to generate the boustrophedon decomposition, this
     function passes a line from left to right through the given
     Polygon. The angle parameter can be modified in order
-    to pass the line in a different direction (0 <= angle < 365).
+    to rotate the polygon before passing the line.
+
+    Returns a tuple: (list, rotate_point)
+     -- where list is a list of the decomposed cells (as Polygons)
+     -- and rotate_point is the point about which the polygon was
+        rotated. Note that the decomposed cells will still be
+        rotated about this point when they are returned.
     """
     # copy the polygon, since we will destructively modify it
     polygon = Polygon(polygon)
 
-    # Rotate. We undo this rotation at the end of the function.
+    # Rotate
     rotate_point = polygon.representative_point()
-    polygon = shapely.affinity.rotate(polygon, -angle,
+    polygon = shapely.affinity.rotate(polygon, angle,
                                       origin=rotate_point)
 
     # Assemble a list of all interior and exterior vertices
@@ -118,11 +133,8 @@ def decompose_helper(polygon, angle=0):
         remainder_box = end_line.union(point).envelope
         polygon = polygon.intersection(remainder_box)
     
-    # Undo rotation for all of the cells
-    for i in xrange(0, len(cells)):
-        cells[i] = shapely.affinity.rotate(cells[i], angle,
-                                           origin=rotate_point)
-    return cells
+
+    return (cells, rotate_point)
 
 def smallest_polygon_area(polygon_list):
     """
