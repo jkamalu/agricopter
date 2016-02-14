@@ -1,5 +1,6 @@
-# This module generates a complete coverage path for a field
-# defined by an arbitrary polygon
+# This module generates a complete cellular decomposition for a
+# polygon, as a first step in the generation of a complete
+# coverage path.
 
 import shapely.affinity
 from shapely.geometry import (Point, Polygon,
