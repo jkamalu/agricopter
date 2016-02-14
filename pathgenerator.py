@@ -8,7 +8,36 @@ from shapely.geometry import (Point, Polygon,
 import pdb
 
 def decompose(polygon):
-    return decompose_helper(polygon, angle=-30)
+    """
+    Generates boustrophedon decompositions of the given polygon,
+    using lines passed through the polygon at all angles that are
+    multiples of 15 degrees. Selects the "best" decomposition
+    based on a simple heuristic (described in the code below).
+
+    Returns a tuple: (best_decomposition, angle)
+     -- where best_decomposition is a list of Polygon objects
+        that represent the cells of the decomposition
+     -- and angle is the angle with which a line was passed through
+        the polygon to generate that decomposition, following the
+        convention of a unit circle (i.e. 0 degrees = moving to the
+        right, 90 degrees = moving up, etc.)
+    """
+    decompositions = []
+    for angle in xrange(0, 180, 15):
+        decompositions.append(
+            (decompose_helper(polygon, angle), angle))
+
+    # Choose the best decomposition, using the size of the
+    # smallest polygon in the decomposition as a heuristic, and
+    # attempting to maximize that heuristic.
+    max_heuristic = 0
+    for i in range(0, len(decompositions)):
+        heuristic = smallest_polygon_area(decompositions[i][0])
+        if heuristic > max_heuristic:
+            max_heuristic = heuristic
+            index = i
+
+    return decompositions[index]
 
 def decompose_helper(polygon, angle=0):
     """
@@ -26,7 +55,7 @@ def decompose_helper(polygon, angle=0):
 
     # Rotate. We undo this rotation at the end of the function.
     rotate_point = polygon.representative_point()
-    polygon = shapely.affinity.rotate(polygon, angle,
+    polygon = shapely.affinity.rotate(polygon, -angle,
                                       origin=rotate_point)
 
     # Assemble a list of all interior and exterior vertices
@@ -52,7 +81,7 @@ def decompose_helper(polygon, angle=0):
     sorted_indices.sort(
         key=lambda index:
         Point(coords[index]).distance(start_line))
-    
+
     cells = []
     for index in sorted_indices:
         point = Point(coords[index])
@@ -84,12 +113,28 @@ def decompose_helper(polygon, angle=0):
             for item in new_cell:
                 if isinstance(item, Polygon):
                     cells.append(item)
-        
+
         remainder_box = end_line.union(point).envelope
         polygon = polygon.intersection(remainder_box)
     
     # Undo rotation for all of the cells
     for i in xrange(0, len(cells)):
-        cells[i] = shapely.affinity.rotate(cells[i], -angle,
+        cells[i] = shapely.affinity.rotate(cells[i], angle,
                                            origin=rotate_point)
     return cells
+
+def smallest_polygon_area(polygon_list):
+    """
+    Returns the area of the smallest polygon in the given list of
+    polygons.
+    """
+    if len(polygon_list) == 0:
+        # TODO: raise an exception here?
+        return 0
+
+    smallest_area = polygon_list[0].area
+    for i in range(1, len(polygon_list)):
+        if polygon_list[i].area < smallest_area:
+            smallest_area = polygon_list[i].area
+
+    return smallest_area
