@@ -2,6 +2,7 @@
 # to traverse the cells of a field that has already been
 # decomposed into cells.
 
+from shapely.geometry import LineString
 from oxpath import coverage_options
 
 class SequenceElement:
@@ -53,8 +54,7 @@ def sequence_helper(cells, prev_element, path_radius):
                     option.distance_to_end = next.distance_to_end
 
                 if prev_element is not None:
-                    option.distance_to_end += (
-                        prev_element.end.distance(option.start))
+                    option.distance_to_end += (prev_element.end.distance(option.start))
 
                 return option.distance_to_end
             
