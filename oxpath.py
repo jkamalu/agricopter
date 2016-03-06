@@ -4,7 +4,7 @@
 from shapely.geometry import (Polygon, LineString, Point)
 
 # TODO: Figure out why I can't "from cellsequencer
-# import SequenceElement"
+
 import cellsequencer
 
 def traversal_endpoints(polygon, path_radius, x, miny, maxy):

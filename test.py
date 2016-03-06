@@ -3,7 +3,7 @@ from pathgenerator import generate_path
 from shapely.geometry import Polygon
 from matplotlib import pyplot
 
-INPUT_FILE = "test_fields/test1.txt"
+INPUT_FILE = "test_fields/test3.txt"
 DRONE_RADIUS = .1
 
 exterior = [(0, 0, 0), (0, 5, 0), (6, 6, 0), (5, -1, 0)]
@@ -12,7 +12,7 @@ test_with_interior = Polygon(exterior, [interior])
 
 if __name__ == '__main__':
     polygon = parsepolygon.parse_polygon(INPUT_FILE)
-#    polygon = test_with_interior
+    # polygon = test_with_interior
 
     waypoints, mission = generate_path(polygon, DRONE_RADIUS)
 
@@ -31,3 +31,8 @@ if __name__ == '__main__':
             [waypoint.y for waypoint in waypoints], 'r')
     
     pyplot.show()
+
+
+    # nodes = generate_path(polygon, DRONE_RADIUS)
+    # for node in nodes:
+    #     print len(node.edges)

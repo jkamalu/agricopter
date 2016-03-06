@@ -32,6 +32,7 @@ def generate_sequence(cells, path_radius):
     return sequence
 
 def sequence_helper(cells, prev_element, path_radius):
+    # print len(cells)
     if len(cells) == 0:
         return None
     else:

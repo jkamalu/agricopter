@@ -2,11 +2,15 @@ import decompose
 import cellsequencer
 import oxpath
 import shapely.affinity
+import cellgrapher
 from MissionGenerator import MissionGenerator
 from Command import Command
 
 def generate_path(polygon, path_radius):
     cells, angle, rotate_point = decompose.decompose(polygon)
+    # return cellgrapher.build_graph(cells)
+    print "len(cells) = %d" %(len(cells))
+
     sequence = cellsequencer.generate_sequence(cells,
                                                path_radius)
     waypoints = []
@@ -26,5 +30,3 @@ def generate_path(polygon, path_radius):
                     waypoints[i].z))
 
     return (waypoints, mission)
-
-
