@@ -23,6 +23,7 @@ def generate_sequence(cells, path_radius):
     the cells originally given, sorted and with start and end
     points marked for optimal coverage of the field.
     """
+    print "LENGTH OF CELLS IS ", len(cells)
     elem = sequence_helper(cells, None, path_radius)
     sequence = []
     while elem is not None:
@@ -32,7 +33,7 @@ def generate_sequence(cells, path_radius):
     return sequence
 
 def sequence_helper(cells, prev_element, path_radius):
-    # print len(cells)
+    print len(cells)
     if len(cells) == 0:
         return None
     else:

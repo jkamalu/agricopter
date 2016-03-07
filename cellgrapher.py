@@ -4,9 +4,15 @@
 
 from shapely.geometry import Polygon
 
+class GraphMeta:
+	def __init__(self, start, node_count):
+		self.start = start
+		self.node_count = node_count
+
 class CellNode:
 	def __init__(self, polygon):
 		self.polygon = polygon
+		self.visited = False
 		self.edges = []
 
 class CellEdge:
@@ -30,16 +36,18 @@ def build_graph(cells):
 	for cell in cells:
 		nodes.append(CellNode(cell))
 
-	print "loop runs for %d loops" %(len(cells))
 	for i in range(0, len(cells)):
-		print "OUTER LOOP"
 		for j in range(i + 1, len(cells)):
-			print "INNER LOOP"
 			if nodes[i].polygon.touches(nodes[j].polygon):
-				print "cell %d touches cell %d" %(i, j)
 				edge = CellEdge(nodes[i], nodes[j])
 				nodes[i].edges.append(edge)
 				nodes[j].edges.append(edge)
-			else:
-				print "cell %d does not touch cell %d" %(i, j)
-	return nodes
+
+	meta = GraphMeta(nodes[0], len(nodes))
+
+	for n in nodes:
+		print n.polygon.centroid
+
+	print "\n"
+
+	return meta
