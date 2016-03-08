@@ -2,12 +2,13 @@
 # polygon in terms of its neighbors with which
 # it shares a border
 
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, LineString
 
 class GraphMeta:
-	def __init__(self, start, node_count):
+	def __init__(self, start, node_count, nodes):
 		self.start = start
 		self.node_count = node_count
+		self.nodes = nodes
 
 class CellNode:
 	def __init__(self, polygon):
@@ -38,16 +39,12 @@ def build_graph(cells):
 
 	for i in range(0, len(cells)):
 		for j in range(i + 1, len(cells)):
-			if nodes[i].polygon.touches(nodes[j].polygon):
+			intersection = nodes[i].polygon.intersection(nodes[j].polygon)
+			if isinstance(intersection, LineString):
 				edge = CellEdge(nodes[i], nodes[j])
 				nodes[i].edges.append(edge)
 				nodes[j].edges.append(edge)
 
-	meta = GraphMeta(nodes[0], len(nodes))
-
-	for n in nodes:
-		print n.polygon.centroid
-
-	print "\n"
+	meta = GraphMeta(nodes[0], len(nodes), nodes)
 
 	return meta

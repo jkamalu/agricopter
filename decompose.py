@@ -115,8 +115,11 @@ def decompose_helper(polygon, angle=0):
             (prev_dist > dist and next_dist < dist)):
             # A basic ox-like path can pass by this vertex without
             # a problem (it is a MIDDLE event), so we do not
-            # consider it as a critical point.
-            continue
+            # need to consider it as a critical point. However, for now
+            # it is more convenient to only have trapezoidal cells, so we
+            # consider all points to be critical points. To change this,
+            # replace "pass" with "continue".
+            pass
 
         # Create new cell(s) by slicing the polygon with a vertical
         # line at this point
