@@ -3,7 +3,7 @@ from pathgenerator import generate_path
 from shapely.geometry import Polygon
 from matplotlib import pyplot
 
-INPUT_FILE = "test_fields/test3.txt"
+INPUT_FILE = "test_fields/test1.txt"
 DRONE_RADIUS = .1
 
 exterior = [(0, 0, 0), (0, 5, 0), (6, 6, 0), (5, -1, 0)]

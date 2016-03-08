@@ -5,6 +5,11 @@
 
 from cellgrapher import (GraphMeta, CellNode, CellEdge)
 
+class StackElem:
+    def __init__(self, node, first_visit):
+        self.node = node
+        self.first_visit = first_visit
+
 def optimal(graph_meta):
 	stack = []
 	optimal_helper(graph_meta.start, stack, graph_meta.node_count)
@@ -12,7 +17,7 @@ def optimal(graph_meta):
 
 def optimal_helper(node, stack, to_visit):
 	node.visited = True
-	stack.append(node)
+	stack.append(StackElem(node, first_visit=True))
 	to_visit = to_visit - 1
 	if to_visit == 0:
 		return None
@@ -24,4 +29,4 @@ def optimal_helper(node, stack, to_visit):
 			next_node = edge.node_a
 		if next_node.visited is False:
 			optimal_helper(next_node, stack, to_visit)
-			stack.append(node)
+			stack.append(StackElem(node, first_visit=False))

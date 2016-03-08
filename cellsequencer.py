@@ -2,7 +2,7 @@
 # to traverse the cells of a field that has already been
 # decomposed into cells.
 
-from oxpath import coverage_options
+import oxpath
 
 class SequenceElement:
     def __init__(self, polygon, start_point, end_point,
@@ -23,7 +23,6 @@ def generate_sequence(cells, path_radius):
     the cells originally given, sorted and with start and end
     points marked for optimal coverage of the field.
     """
-    print "LENGTH OF CELLS IS ", len(cells)
     elem = sequence_helper(cells, None, path_radius)
     sequence = []
     while elem is not None:
@@ -33,13 +32,13 @@ def generate_sequence(cells, path_radius):
     return sequence
 
 def sequence_helper(cells, prev_element, path_radius):
-    print len(cells)
     if len(cells) == 0:
         return None
     else:
         possibilities = []
         for i in xrange(0, len(cells)):
-            options = coverage_options(cells[i], path_radius)
+            options = oxpath.coverage_options(cells[i],
+                                              path_radius)
             cells_copy = list(cells)
             cells_copy.pop(i)
 

@@ -2,6 +2,7 @@
 # path for a given polygonal cell.
 
 from shapely.geometry import (Polygon, LineString, Point)
+from heapq import heappush, heappop
 
 # TODO: Figure out why I can't "from cellsequencer
 
@@ -82,6 +83,46 @@ def coverage_options(polygon, path_radius):
             cellsequencer.SequenceElement(
                 polygon, lower_right, upper_left, False, False)]
 
+class CellPath:
+    """
+    A coverage path for an individual cell.
+    """
+    def __init__(self, waypoints):
+        self.waypoints = waypoints
+
+class CompletePath:
+    """
+    A coverage path for an entire field, comprising a list of
+    coverage paths for each of its cells.
+    """
+    def __init__(self, initial_cell):
+        self.cells = [initial_cell] # list of CellPaths
+        self.length = 0 # total length of connecting lines
+                        # between cells (i.e. not including the
+                        # distance spent covering each cell, just
+                        # the distance going from one cell to
+                        # the next one)
+
+    def copy(self):
+        """
+        Return a copy of this CompletePath, using a shallow copy
+        of the list of CellPaths.
+        """
+        path_copy = CompletePath(None)
+        path_copy.cells = self.cells[:]
+        path_copy.length = self.length
+        return path_copy
+
+    def add(self, cell):
+        """
+        Add a CellPath to the end of the list and update length.
+        Precondition: there is at least one CellPath in the list.
+        """
+        added_length = self.cells[-1].waypoints[-1].distance(
+            cell.waypoints[0])
+        self.cells.append(cell)
+        self.length += added_length
+
 def generate_path(polygon, path_radius, start_top, start_left):
     minx, miny, maxx, maxy = polygon.bounds
     
@@ -113,4 +154,55 @@ def generate_path(polygon, path_radius, start_top, start_left):
             waypoints.append(top_points.pop(pop_index))
             top_to_bottom = True
 
+    # TODO: Deal correctly with cells that are too small for the
+    # drone to pass through them. For the time being, just pass
+    # through the center of the cell.
+    if len(waypoints) == 0:
+        waypoints.append(polygon.centroid)
+
     return waypoints
+
+def generate_paths(polygon, path_radius):
+    return [
+        CellPath(generate_path(polygon, path_radius, True, True)),
+        CellPath(generate_path(polygon, path_radius, True, False)),
+        CellPath(generate_path(polygon, path_radius, False, True)),
+        CellPath(generate_path(polygon, path_radius, False, False))
+    ]
+
+def generate_oxpath(stack, path_radius):
+    # Generate all possible ox paths for each of the individual
+    # cells (linear time), as CellPath objects. The indices of
+    # stack and cell_paths are the same, i.e. the possible ox
+    # paths for the cell at stack[i] are stored in a list at
+    # cell_paths[i].
+    cell_paths = []
+    for elem in stack:
+        if elem.first_visit:
+            # record a list of the four possible ways to cover
+            # this cell with an ox path
+            cell_paths.append(generate_paths(elem.node.polygon,
+                                             path_radius))
+        else:
+            # for now, if the cell has already been visited,
+            # just pass through its centroid and continue
+            # TODO: find an efficient path through the cell
+            # that avoids obstacles
+            centroid = elem.node.polygon.centroid
+            cell_paths.append([ CellPath([centroid]) ])
+
+    # Find a CompletePath that covers the field in the minimum
+    # distance.
+    heap = []
+    for initial_cell in cell_paths[0]:
+        heappush(heap, (0, CompletePath(initial_cell)))
+
+    while True:
+        priority, path = heappop(heap)
+        index = len(path.cells)
+        for cell in cell_paths[index]:
+            new_path = path.copy()
+            new_path.add(cell)
+            if len(new_path.cells) == len(stack):
+                return new_path
+            heappush(heap, (new_path.length, new_path))
