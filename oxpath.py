@@ -1,12 +1,59 @@
-# This module generates an ox-style (boustrophedon) coverage
-# path for a given polygonal cell.
+# This module generates an ox-style (boustrophedon) coverage path
+# for a field that has already been decomposed and linked into an
+# ordered list of cells.
 
-from shapely.geometry import (Polygon, LineString, Point)
-from heapq import heappush, heappop
+from shapely.geometry import Point, LineString
+from heapq import heappush, heappop # priority queue
 
-# TODO: Figure out why I can't "from cellsequencer
+class CellPath:
+    """
+    A coverage path for an individual cell.
+    """
+    def __init__(self, waypoints):
+        self.waypoints = waypoints
 
-import cellsequencer
+class CompletePath:
+    """
+    A coverage path for an entire field, comprising a list of
+    coverage paths for each of its cells.
+    """
+    def __init__(self, initial_cell):
+        self.cells = [initial_cell] # list of CellPaths
+        self.length = 0 # total length of connecting lines
+                        # between cells (i.e. not including the
+                        # distance spent covering each cell, just
+                        # the distance going from one cell to
+                        # the next one)
+
+    def add(self, cell):
+        """
+        Add a CellPath to the end of the list and update length.
+        Precondition: there is at least one CellPath in the list.
+        """
+        added_length = self.cells[-1].waypoints[-1].distance(
+            cell.waypoints[0])
+        self.cells.append(cell)
+        self.length += added_length
+
+    def copy(self):
+        """
+        Return a copy of this CompletePath, using a shallow copy
+        of the list of CellPaths.
+        """
+        path_copy = CompletePath(None)
+        path_copy.cells = self.cells[:]
+        path_copy.length = self.length
+        return path_copy
+
+def average_z(polygon):
+    """
+    Determine the average z value of the vertices of the polygon.
+    Used as a (very rough) approximation for the z value of the
+    centroid of that polygon.
+    """
+    exterior = polygon.exterior.coords[:-1]
+    total = sum([point[2] for point in exterior])
+    return total / len(exterior)
 
 def traversal_endpoints(polygon, path_radius, x, miny, maxy):
     line = LineString([(x, miny - 1), (x, maxy + 1)])
@@ -32,98 +79,8 @@ def traversal_endpoints(polygon, path_radius, x, miny, maxy):
     else:
         return (point2, point1)
 
-def coverage_options(polygon, path_radius):
-    minx, miny, maxx, maxy = polygon.bounds
-    
-    # TODO: better handling of areas where there is not
-    # enough horizontal space in the field to safely pass the
-    # drone
-    xleft = minx + path_radius
-    xcenter = (minx + maxx) / 2
-    if xleft > xcenter:
-        xleft = xcenter
-
-    xright = xleft
-    ntraversals = 1
-    while (xright + path_radius * 2) <= (maxx - path_radius):
-        xright += path_radius * 2
-        ntraversals += 1
-
-    upper_left, lower_left = traversal_endpoints(polygon,
-                                                 path_radius,
-                                                 xleft,
-                                                 miny, maxy)
-    upper_right, lower_right = traversal_endpoints(polygon,
-                                                   path_radius,
-                                                   xright,
-                                                   miny, maxy)
-
-    if ntraversals % 2 == 0:
-        # Drone will end its coverage of this polygon at the same
-        # y-position as where it started
-        return [
-            cellsequencer.SequenceElement(
-                polygon, lower_left, lower_right, False, True),
-            cellsequencer.SequenceElement(
-                polygon, lower_right, lower_left, False, False),
-            cellsequencer.SequenceElement(
-                polygon, upper_left, upper_right, True, True),
-            cellsequencer.SequenceElement(
-                polygon, upper_right, upper_left, True, False)]
-    else:
-        # Drone will end its coverage at the opposite y-position
-        # (i.e. start high, end low, or vice versa)
-        return [
-            cellsequencer.SequenceElement(
-                polygon, lower_left, upper_right, False, True),
-            cellsequencer.SequenceElement(
-                polygon, upper_right, lower_left, True, False),
-            cellsequencer.SequenceElement(
-                polygon, upper_left, lower_right, True, True),
-            cellsequencer.SequenceElement(
-                polygon, lower_right, upper_left, False, False)]
-
-class CellPath:
-    """
-    A coverage path for an individual cell.
-    """
-    def __init__(self, waypoints):
-        self.waypoints = waypoints
-
-class CompletePath:
-    """
-    A coverage path for an entire field, comprising a list of
-    coverage paths for each of its cells.
-    """
-    def __init__(self, initial_cell):
-        self.cells = [initial_cell] # list of CellPaths
-        self.length = 0 # total length of connecting lines
-                        # between cells (i.e. not including the
-                        # distance spent covering each cell, just
-                        # the distance going from one cell to
-                        # the next one)
-
-    def copy(self):
-        """
-        Return a copy of this CompletePath, using a shallow copy
-        of the list of CellPaths.
-        """
-        path_copy = CompletePath(None)
-        path_copy.cells = self.cells[:]
-        path_copy.length = self.length
-        return path_copy
-
-    def add(self, cell):
-        """
-        Add a CellPath to the end of the list and update length.
-        Precondition: there is at least one CellPath in the list.
-        """
-        added_length = self.cells[-1].waypoints[-1].distance(
-            cell.waypoints[0])
-        self.cells.append(cell)
-        self.length += added_length
-
-def generate_path(polygon, path_radius, start_top, start_left):
+def generate_cell_path(polygon, path_radius,
+                       start_top, start_left):
     minx, miny, maxx, maxy = polygon.bounds
     
     top_points = []
@@ -158,19 +115,21 @@ def generate_path(polygon, path_radius, start_top, start_left):
     # drone to pass through them. For the time being, just pass
     # through the center of the cell.
     if len(waypoints) == 0:
-        waypoints.append(polygon.centroid)
+        centroid = polygon.centroid
+        waypoints.append(Point(centroid.x, centroid.y,
+                               average_z(polygon)))
 
-    return waypoints
+    return CellPath(waypoints)
 
-def generate_paths(polygon, path_radius):
+def possible_paths(polygon, path_radius):
     return [
-        CellPath(generate_path(polygon, path_radius, True, True)),
-        CellPath(generate_path(polygon, path_radius, True, False)),
-        CellPath(generate_path(polygon, path_radius, False, True)),
-        CellPath(generate_path(polygon, path_radius, False, False))
+        generate_cell_path(polygon, path_radius, True, True),
+        generate_cell_path(polygon, path_radius, True, False),
+        generate_cell_path(polygon, path_radius, False, True),
+        generate_cell_path(polygon, path_radius, False, False)
     ]
 
-def generate_oxpath(stack, path_radius):
+def generate_path(stack, path_radius):
     # Generate all possible ox paths for each of the individual
     # cells (linear time), as CellPath objects. The indices of
     # stack and cell_paths are the same, i.e. the possible ox
@@ -181,7 +140,7 @@ def generate_oxpath(stack, path_radius):
         if elem.first_visit:
             # record a list of the four possible ways to cover
             # this cell with an ox path
-            cell_paths.append(generate_paths(elem.node.polygon,
+            cell_paths.append(possible_paths(elem.node.polygon,
                                              path_radius))
         else:
             # for now, if the cell has already been visited,
@@ -189,6 +148,8 @@ def generate_oxpath(stack, path_radius):
             # TODO: find an efficient path through the cell
             # that avoids obstacles
             centroid = elem.node.polygon.centroid
+            centroid = Point(centroid.x, centroid.y,
+                             average_z(elem.node.polygon))
             cell_paths.append([ CellPath([centroid]) ])
 
     # Find a CompletePath that covers the field in the minimum
