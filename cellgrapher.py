@@ -17,9 +17,10 @@ class CellNode:
 		self.edges = []
 
 class CellEdge:
-	def __init__(self, node_a, node_b, border_line=None):
+	def __init__(self, node_a, node_b, weight=1, border_line=None):
 		self.node_a = node_a
 		self.node_b = node_b
+		self.weight = weight
 		self.border_line = border_line
 
 def build_graph(cells):
