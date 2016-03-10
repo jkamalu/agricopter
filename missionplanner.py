@@ -8,7 +8,8 @@ import oxpath
 from MissionGenerator import MissionGenerator
 from Command import Command
 
-def plan_complete_coverage_mission(polygon, path_radius):
+def plan_complete_coverage_mission(polygon, path_radius,
+                                   drone_elevation):
     cells, angle, rotate_point = decompose.decompose(polygon)
     graph_meta = cellgrapher.build_graph(cells)
     stack = celllinker.optimal(graph_meta)
@@ -25,7 +26,7 @@ def plan_complete_coverage_mission(polygon, path_radius):
             waypoints[i], -angle, origin=rotate_point)
         mission.add_command(
             Command(16, waypoints[i].y, waypoints[i].x,
-                    waypoints[i].z))
+                    drone_elevation))
 
     # Along with the mission, return a dictionary with some
     # data structures that allow the client to generate a

@@ -7,6 +7,7 @@ from missionplanner import plan_complete_coverage_mission
 
 INPUT_FILE = "test_fields/test3.txt"
 DRONE_RADIUS = .1
+DRONE_ELEVATION = 10
 
 exterior = [(0, 0, 0), (0, 5, 0), (6, 6, 0), (5, -1, 0)]
 interior = [(1, 1, 0), (2, 1, 0), (1.5, 3, 0)]
@@ -17,7 +18,8 @@ if __name__ == '__main__':
 #    polygon = test_with_interior
 
     visualization_data, mission = plan_complete_coverage_mission(
-                                           polygon, DRONE_RADIUS)
+                                           polygon, DRONE_RADIUS,
+                                           DRONE_ELEVATION)
     mission.export_to_file('test_output.waypoints')
 
 

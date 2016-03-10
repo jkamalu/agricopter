@@ -2,7 +2,7 @@
 # for a field that has already been decomposed and linked into an
 # ordered list of cells.
 
-from shapely.geometry import Point, LineString
+from shapely.geometry import Point, LineString, LinearRing
 from heapq import heappush, heappop # priority queue
 
 class CellPath:
@@ -45,88 +45,74 @@ class CompletePath:
         path_copy.length = self.length
         return path_copy
 
-def average_z(polygon):
-    """
-    Determine the average z value of the vertices of the polygon.
-    Used as a (very rough) approximation for the z value of the
-    centroid of that polygon.
-    """
-    exterior = polygon.exterior.coords[:-1]
-    total = sum([point[2] for point in exterior])
-    return total / len(exterior)
-
-def traversal_endpoints(polygon, path_radius, x, miny, maxy):
+def traversal_endpoints(polygon, x, miny, maxy):
     line = LineString([(x, miny - 1), (x, maxy + 1)])
     intersection = line.intersection(polygon)
 
-    # TODO: more intelligent error handling than an assert
-    assert isinstance(intersection, LineString)
+    if not isinstance(intersection, LineString):
+        # This should never happen, since traversal endpoints
+        # are only calculated for x-values between the minx
+        # and maxx for the polygon, but we check just in case.
+        # TODO: print a warning message.
+        return None, None
 
-    # TODO: better handling of areas where there is not
-    # enough vertical space in the field to safely pass the
-    # drone
-    if intersection.length <= path_radius * 2:
-        point1 = intersection.interpolate(.5,
-                                          normalized=True)
-        point2 = point1
-    else:
-        point1 = intersection.interpolate(path_radius)
-        point2 = intersection.interpolate(intersection.length
-                                          - path_radius)
+    endpoints = intersection.boundary
+    return (min(endpoints, key=lambda point: point.y),
+            max(endpoints, key=lambda point: point.y))
 
-    if point1.y > point2.y:
-        return (point1, point2)
-    else:
-        return (point2, point1)
-
-def generate_cell_path(polygon, path_radius,
-                       start_top, start_left):
-    minx, miny, maxx, maxy = polygon.bounds
-    
-    top_points = []
-    bottom_points = []
-
-    x = minx + path_radius
-    while x <= maxx - path_radius:
-        top, bottom = traversal_endpoints(polygon, path_radius,
-                                          x, miny, maxy)
-        top_points.append(top)
-        bottom_points.append(bottom)
-        x += path_radius * 2
-
+def generate_cell_path(bottoms, tops, start_top, start_left):
     waypoints = []
     top_to_bottom = start_top
     if start_left:
-        pop_index = 0 # pop leftmost point
+        indices = range(0, len(bottoms))
     else:
-        pop_index = -1 # pop rightmost point
+        indices = range(len(bottoms) - 1, -1, -1)
 
-    for i in range(0, len(top_points)):
+    for i in indices:
         if top_to_bottom:
-            waypoints.append(top_points.pop(pop_index))
-            waypoints.append(bottom_points.pop(pop_index))
-            top_to_bottom = False
+            waypoints += [tops[i], bottoms[i]]
         else:
-            waypoints.append(bottom_points.pop(pop_index))
-            waypoints.append(top_points.pop(pop_index))
-            top_to_bottom = True
+            waypoints += [bottoms[i], tops[i]]
 
-    # TODO: Deal correctly with cells that are too small for the
-    # drone to pass through them. For the time being, just pass
-    # through the center of the cell.
-    if len(waypoints) == 0:
-        centroid = polygon.centroid
-        waypoints.append(Point(centroid.x, centroid.y,
-                               average_z(polygon)))
+        top_to_bottom = not top_to_bottom
 
     return CellPath(waypoints)
 
 def possible_paths(polygon, path_radius):
+    centroid = polygon.centroid
+
+    # erode polygon (pull the edges inward) to ensure that drone
+    # does not fly too close to the edge
+    polygon = polygon.buffer(-path_radius)
+    if not isinstance(polygon.exterior, LinearRing):
+        # Polygon no longer exists, meaning it was too small for
+        # the drone to pass through it. For now just pass through
+        # the centroid and move on.
+        return CellPath([centroid])
+
+    minx, miny, maxx, maxy = polygon.bounds
+    bottoms = []
+    tops = []
+
+    x = minx
+    while x <= maxx:
+        bottom, top = traversal_endpoints(polygon, x, miny, maxy)
+        if bottom != None:
+            bottoms.append(bottom)
+            tops.append(top)
+        x += path_radius * 2
+
+    if len(bottoms) == 0:
+        # This should theoretically not happen but we include it
+        # just in case.
+        # TODO: print a warning message.
+        return CellPath([centroid])
+
     return [
-        generate_cell_path(polygon, path_radius, True, True),
-        generate_cell_path(polygon, path_radius, True, False),
-        generate_cell_path(polygon, path_radius, False, True),
-        generate_cell_path(polygon, path_radius, False, False)
+        generate_cell_path(bottoms, tops, True, True),
+        generate_cell_path(bottoms, tops, True, False),
+        generate_cell_path(bottoms, tops, False, True),
+        generate_cell_path(bottoms, tops, False, False)
     ]
 
 def generate_path(stack, path_radius):
@@ -148,8 +134,6 @@ def generate_path(stack, path_radius):
             # TODO: find an efficient path through the cell
             # that avoids obstacles
             centroid = elem.node.polygon.centroid
-            centroid = Point(centroid.x, centroid.y,
-                             average_z(elem.node.polygon))
             cell_paths.append([ CellPath([centroid]) ])
 
     # Find a CompletePath that covers the field in the minimum
