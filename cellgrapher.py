@@ -43,6 +43,7 @@ def build_graph(cells):
 			intersection = nodes[i].polygon.intersection(nodes[j].polygon)
 			if isinstance(intersection, LineString):
 				edge = CellEdge(nodes[i], nodes[j])
+				edge.border_line = intersection
 				nodes[i].edges.append(edge)
 				nodes[j].edges.append(edge)
 

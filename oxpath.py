@@ -11,6 +11,44 @@ class CellPath:
     """
     def __init__(self, waypoints):
         self.waypoints = waypoints
+        self.transition = [] # waypoints to move to the next cell
+    
+    def add_transition(self, target_point, this_node, next_node):
+        if next_node == None:
+            self.transition.append(target_point)
+            return
+
+        # find the edge between this cell and the next
+        for edge in this_node.edges:
+            if (edge.node_a == next_node or
+                edge.node_b == next_node):
+                break
+        else:
+            raise Exception('No edge found between this node '
+                            'and next node in stack')
+
+        border = edge.border_line
+        passing_point = border.interpolate(border.project(
+                                                   target_point))
+        if this_node.eroded != None:
+            exterior = this_node.eroded.exterior
+            point = exterior.interpolate(exterior.project(
+                                                  passing_point))
+            self.transition.append(point)
+
+        if next_node.eroded == None:
+            self.transition.append(next_node.polygon.centroid)
+        else:
+            exterior = next_node.eroded.exterior
+            point = exterior.interpolate(exterior.project(
+                                                  passing_point))
+            self.transition.append(point)
+
+    def copy(self):
+        waypoints_copy = self.waypoints[:]
+        cell_copy = CellPath(waypoints_copy)
+        cell_copy.transition = self.transition[:]
+        return cell_copy
 
 class CompletePath:
     """
@@ -30,8 +68,18 @@ class CompletePath:
         Add a CellPath to the end of the list and update length.
         Precondition: there is at least one CellPath in the list.
         """
-        added_length = self.cells[-1].waypoints[-1].distance(
-            cell.waypoints[0])
+        if len(cell.waypoints) > 0:
+            start_point = cell.waypoints[0]
+        else:
+            start_point = cell.transition[0]
+
+        added_length = self.cells[-1].transition[-1].distance(
+                                                     start_point)
+        prev_point = cell.transition[0]
+        for point in cell.transition[1:]:
+            added_length += prev_point.distance(point)
+            prev_point = point
+
         self.cells.append(cell)
         self.length += added_length
 
@@ -49,12 +97,11 @@ def traversal_endpoints(polygon, x, miny, maxy):
     line = LineString([(x, miny - 1), (x, maxy + 1)])
     intersection = line.intersection(polygon)
 
-    if not isinstance(intersection, LineString):
-        # This should never happen, since traversal endpoints
-        # are only calculated for x-values between the minx
-        # and maxx for the polygon, but we check just in case.
-        # TODO: print a warning message.
-        return None, None
+    if isinstance(intersection, Point):
+        return intersection, intersection
+    else:
+        # TODO: better error handling
+        assert isinstance(intersection, LineString)
 
     endpoints = intersection.boundary
     return (min(endpoints, key=lambda point: point.y),
@@ -79,17 +126,11 @@ def generate_cell_path(bottoms, tops, start_top, start_left):
     return CellPath(waypoints)
 
 def possible_paths(polygon, path_radius):
-    centroid = polygon.centroid
-
-    # erode polygon (pull the edges inward) to ensure that drone
-    # does not fly too close to the edge
-    polygon = polygon.buffer(-path_radius)
-    if not isinstance(polygon.exterior, LinearRing):
-        # Polygon no longer exists, meaning it was too small for
-        # the drone to pass through it. For now just pass through
-        # the centroid and move on.
-        return CellPath([centroid])
-
+    """
+    Node: the polygon passed should have already been eroded
+    before calling this function to ensure a safe margin for the
+    drone.
+    """
     minx, miny, maxx, maxy = polygon.bounds
     bottoms = []
     tops = []
@@ -97,16 +138,11 @@ def possible_paths(polygon, path_radius):
     x = minx
     while x <= maxx:
         bottom, top = traversal_endpoints(polygon, x, miny, maxy)
-        if bottom != None:
-            bottoms.append(bottom)
-            tops.append(top)
+        bottoms.append(bottom)
+        tops.append(top)
         x += path_radius * 2
 
-    if len(bottoms) == 0:
-        # This should theoretically not happen but we include it
-        # just in case.
-        # TODO: print a warning message.
-        return CellPath([centroid])
+    assert(len(bottoms) > 0)
 
     return [
         generate_cell_path(bottoms, tops, True, True),
@@ -123,31 +159,78 @@ def generate_path(stack, path_radius):
     # cell_paths[i].
     cell_paths = []
     for elem in stack:
-        if elem.first_visit:
-            # record a list of the four possible ways to cover
-            # this cell with an ox path
-            cell_paths.append(possible_paths(elem.node.polygon,
+        if not hasattr(elem.node, 'eroded'):
+            # Generate an eroded version of this cell (with the
+            # edges pulled inward by path_radius)
+            elem.node.eroded = elem.node.polygon.buffer(
+                                                    -path_radius)
+            if not isinstance(elem.node.eroded.exterior,
+                              LinearRing):
+                # After eroding, the cell disappeared completely,
+                # meaning it was too small for the drone to
+                # safely drop pesticides on it
+                elem.node.eroded = None
+
+        if elem.first_visit and elem.node.eroded != None:
+            cell_paths.append(possible_paths(elem.node.eroded,
                                              path_radius))
         else:
-            # for now, if the cell has already been visited,
-            # just pass through its centroid and continue
-            # TODO: find an efficient path through the cell
-            # that avoids obstacles
-            centroid = elem.node.polygon.centroid
-            cell_paths.append([ CellPath([centroid]) ])
-
+            # leave it to the second part of the algorithm
+            # (below) to figure out how to traverse this cell
+            cell_paths.append([])
+        
     # Find a CompletePath that covers the field in the minimum
     # distance.
     heap = []
+    # TODO: FIX THIS, not safe to assume 2 elements in the stack
+    this_node = stack[0].node
+    next_node = stack[1].node
+    target_point = stack[1].node.polygon.centroid
     for initial_cell in cell_paths[0]:
+        initial_cell.add_transition(target_point, this_node,
+                                    next_node)
         heappush(heap, (0, CompletePath(initial_cell)))
 
     while True:
         priority, path = heappop(heap)
         index = len(path.cells)
-        for cell in cell_paths[index]:
-            new_path = path.copy()
-            new_path.add(cell)
-            if len(new_path.cells) == len(stack):
-                return new_path
-            heappush(heap, (new_path.length, new_path))
+        if index == len(stack):
+            return path
+
+        # determine the next point that the drone wants to get to
+        # after traversing this cell (either the centroid of the
+        # next cell that needs to be covered, or the starting
+        # point)
+        i = index + 1
+        while i < len(stack) and len(cell_paths[i]) == 0:
+            i += 1
+        if i == len(stack):
+            # TODO: FIX THIS, not necessarily safe to check
+            # waypoints[0]
+            target_point = path.cells[0].waypoints[0]
+        else:
+            target_point = stack[i].node.polygon.centroid
+
+        this_node = stack[index].node
+        if index + 1 < len(stack):
+            next_node = stack[index + 1].node
+        else:
+            next_node = None
+
+        if len(cell_paths[index]) > 0:
+            for cell in cell_paths[index]:
+                new_cell = cell.copy()
+                new_cell.add_transition(target_point,
+                                        this_node,
+                                        next_node)
+                new_path = path.copy()
+                new_path.add(new_cell)
+                heappush(heap, (new_path.length, new_path))
+        else:
+            # generate a path to traverse this cell
+            new_cell = CellPath([])
+            new_cell.add_transition(target_point,
+                                    this_node,
+                                    next_node)
+            path.add(new_cell)
+            heappush(heap, (path.length, path))

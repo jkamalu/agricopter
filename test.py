@@ -5,8 +5,8 @@ from matplotlib import pyplot
 import parsepolygon
 from missionplanner import plan_complete_coverage_mission
 
-INPUT_FILE = "test_fields/test3.txt"
-DRONE_RADIUS = .1
+INPUT_FILE = "test_fields/test4.txt"
+DRONE_RADIUS = .03
 DRONE_ELEVATION = 10
 
 exterior = [(0, 0, 0), (0, 5, 0), (6, 6, 0), (5, -1, 0)]
@@ -15,7 +15,7 @@ test_with_interior = Polygon(exterior, [interior])
 
 if __name__ == '__main__':
     polygon = parsepolygon.parse_polygon(INPUT_FILE)
-#    polygon = test_with_interior
+    polygon = test_with_interior
 
     visualization_data, mission = plan_complete_coverage_mission(
                                            polygon, DRONE_RADIUS,
@@ -64,16 +64,39 @@ if __name__ == '__main__':
                 fontsize=8, verticalalignment='center',
                 horizontalalignment='center')
 
+    ax.text(waypoints[0].x, waypoints[0].y, "X",
+            fontsize=10, verticalalignment='center',
+            horizontalalignment='center')
+
     # Display chosen path for drone (solid green line)
-    ax.plot([waypoint.x for waypoint in waypoints],
-            [waypoint.y for waypoint in waypoints], 'g')
+    for i in xrange(0, len(path.cells)):
+        if len(path.cells[i].waypoints) > 0:
+            path.cells[i].transition.insert(
+                0, path.cells[i].waypoints[-1])
+
+        if i < len(path.cells) - 1:
+            if len(path.cells[i+1].waypoints) > 0:
+                path.cells[i].transition.append(
+                    path.cells[i+1].waypoints[0])
+            else:
+                path.cells[i].transition.append(
+                    path.cells[i+1].transition[0])
+
+    for cell_path in path.cells:
+        ax.plot([waypoint.x for waypoint in cell_path.transition],
+                [waypoint.y for waypoint in cell_path.transition],
+                'c', linewidth=2)
+    for cell_path in path.cells:
+        ax.plot([waypoint.x for waypoint in cell_path.waypoints],
+                [waypoint.y for waypoint in cell_path.waypoints],
+                'g')
 
     # Print out the centroids of the cells, in the order that
     # they should be traversed according to the results of
     # celllinker.optimal()
     for stackelem in stack:
         cell = stackelem.node.polygon
-        label = "({0:.2g}, {1:.2g})".format(cell.centroid.x,
+        label = "({0:.6g}, {1:.6g})".format(cell.centroid.x,
                                             cell.centroid.y)
         label = "{0:12}  first visit: {1}".format(
             label, stackelem.first_visit)
