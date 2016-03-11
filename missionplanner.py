@@ -13,7 +13,10 @@ def plan_complete_coverage_mission(polygon, path_radius,
     cells, angle, rotate_point = decompose.decompose(polygon)
     graph_meta = cellgrapher.build_graph(cells)
     stack = celllinker.optimal(graph_meta)
-    path = oxpath.generate_path(stack, path_radius)
+    rotated_polygon = shapely.affinity.rotate(
+        polygon, angle, origin=rotate_point)
+    path = oxpath.generate_path(stack, path_radius,
+                                rotated_polygon)
 
     waypoints = []
     for cell_path in path.cells:

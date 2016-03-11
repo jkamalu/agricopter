@@ -15,12 +15,14 @@ class CellPath:
 
     def start_point(self):
         return self.waypoints[0]
+
+    def end_point(self):
+        if len(self.transition) > 0:
+            return self.transition[-1]
+        else:
+            return self.waypoints[-1]
     
     def add_transition(self, target_point, this_node, next_node):
-        if next_node == None:
-            self.transition.append(target_point)
-            return
-
         # find the edge between this cell and the next
         for edge in this_node.edges:
             if (edge.node_a == next_node or
@@ -58,30 +60,60 @@ class CompletePath:
     A coverage path for an entire field, comprising a list of
     coverage paths for each of its cells.
     """
-    def __init__(self, initial_cell):
+    def __init__(self, initial_cell, eroded_polygon):
         self.cells = [initial_cell] # list of CellPaths
         self.length = 0 # total length of connecting lines
                         # between cells (i.e. not including the
                         # distance spent covering each cell, just
                         # the distance going from one cell to
                         # the next one)
+        self.cells_traversed = 1
+        self.polygon = eroded_polygon
 
-    def add(self, cell):
-        """
-        Add a CellPath to the end of the list and update length.
-        Precondition: there is at least one CellPath in the list.
-        """
-        if len(cell.waypoints) > 0:
-            start_point = cell.waypoints[0]
-            self.length += self.cells[-1].transition[-1].distance(
-                                                     start_point)
+    def add(self, cell_path):
+        self.cells.append(cell_path)
+        self.cells_traversed += 1
 
-        self.cells.append(cell)
+    def start_point(self):
+        return self.cells[0].waypoints[0]
 
-    def add_transition(self, target_point, prev_node, this_node):
+    def has_transition(self):
+        return len(self.cells[-1].transition) > 0
+
+    def add_transition(self, target_point, stack, index,
+                       cells_traversed):
         self.cells[-1] = self.cells[-1].copy()
-        self.cells[-1].add_transition(target_point, prev_node,
-                                      this_node)
+        self.cells_traversed += cells_traversed
+
+        self.cells[-1].transition.append(
+            self.cells[-1].end_point())
+
+        while True:
+            # try to go directly to target
+            # TODO: deal with case were, even once in the final
+            # cell, the drone isn't able to fly directly to the
+            # target for some reason
+            current_point = self.cells[-1].end_point()
+            if current_point.equals(target_point):
+                break
+
+            line = LineString([(current_point.x, current_point.y),
+                               (target_point.x, target_point.y)])
+            assert line.is_valid
+
+            if self.polygon.contains(line):
+                self.cells[-1].transition.append(target_point)
+                break
+
+            # move into the next cell
+            try:
+                self.cells[-1].add_transition(target_point,
+                                          stack[index].node,
+                                          stack[index+1].node)
+            except Exception:
+                print index
+
+            index += 1
 
         prev_point = self.cells[-1].transition[0]
         for point in self.cells[-1].transition[1:]:
@@ -93,9 +125,10 @@ class CompletePath:
         Return a copy of this CompletePath, using a shallow copy
         of the list of CellPaths.
         """
-        path_copy = CompletePath(None)
+        path_copy = CompletePath(None, self.polygon)
         path_copy.cells = self.cells[:]
         path_copy.length = self.length
+        path_copy.cells_traversed = self.cells_traversed
         return path_copy
 
 def traversal_endpoints(polygon, x, miny, maxy):
@@ -156,7 +189,9 @@ def possible_paths(polygon, path_radius):
         generate_cell_path(bottoms, tops, False, False)
     ]
 
-def generate_path(stack, path_radius):
+def generate_path(stack, path_radius, polygon):
+    eroded_polygon = polygon.buffer(-path_radius / 2)
+
     # Generate all possible ox paths for each of the individual
     # cells (linear time), as CellPath objects. The indices of
     # stack and cell_paths are the same, i.e. the possible ox
@@ -187,44 +222,34 @@ def generate_path(stack, path_radius):
     # Find a CompletePath that covers the field in the minimum
     # distance.
     heap = []
-    # TODO: FIX THIS, not safe to assume 2 elements in the stack
-#    this_node = stack[0].node
-#    next_node = stack[1].node
-#    target_point = stack[1].node.polygon.centroid
     for initial_cell in cell_paths[0]:
-#        initial_cell.add_transition(target_point, this_node,
-#                                    next_node)
-        heappush(heap, (0, CompletePath(initial_cell)))
+        heappush(heap, (0, CompletePath(initial_cell,
+                                        eroded_polygon)))
 
     while True:
         priority, path = heappop(heap)
-        index = len(path.cells)
+        index = path.cells_traversed
 
-        if index == len(stack):
-            # this path already contains all the cells
-            if len(path.cells[-1].transition) > 0:
+        i = index
+        while i < len(stack):
+            if len(cell_paths[i]) > 0:
+                break
+            i += 1
+
+        if i == len(stack):
+            if path.has_transition():
                 return path
             else:
-                target_point = path.cells[0].waypoints[0]
-                prev_node = stack[-1].node
-                path.add_transition(target_point, prev_node,
-                                    None)
+                # add transition back to start point
+                path.add_transition(path.start_point(),
+                                    stack, index-1,
+                                    cells_traversed=0)
                 heappush(heap, (path.length, path))
                 continue
 
-        prev_node = stack[index-1].node
-        this_node = stack[index].node
-
-        if len(cell_paths[index]) > 0:
-            for cell_path in cell_paths[index]:
-                new_path = path.copy()
-                new_path.add_transition(cell_path.start_point(),
-                                        prev_node, this_node)
-                new_path.add(cell_path)
-                heappush(heap, (new_path.length, new_path))
-        else:
-            # generate a path to traverse this cell
-            path.add_transition(this_node.polygon.centroid,
-                                prev_node, this_node)
-            path.add(CellPath([]))
-            heappush(heap, (path.length, path))
+        for cell_path in cell_paths[i]:
+            new_path = path.copy()
+            new_path.add_transition(cell_path.start_point(),
+                                    stack, index-1, i - index)
+            new_path.add(cell_path)
+            heappush(heap, (new_path.length, new_path))
