@@ -5,8 +5,8 @@ from matplotlib import pyplot
 import parsepolygon
 from missionplanner import plan_complete_coverage_mission
 
-INPUT_FILE = "test_fields/test4.txt"
-DRONE_RADIUS = .03
+INPUT_FILE = "test_fields/test3.txt"
+DRONE_RADIUS = .06
 DRONE_ELEVATION = 10
 
 exterior = [(0, 0, 0), (0, 5, 0), (6, 6, 0), (5, -1, 0)]
@@ -15,7 +15,7 @@ test_with_interior = Polygon(exterior, [interior])
 
 if __name__ == '__main__':
     polygon = parsepolygon.parse_polygon(INPUT_FILE)
-    polygon = test_with_interior
+#    polygon = test_with_interior
 
     visualization_data, mission = plan_complete_coverage_mission(
                                            polygon, DRONE_RADIUS,
@@ -96,7 +96,7 @@ if __name__ == '__main__':
     # celllinker.optimal()
     for stackelem in stack:
         cell = stackelem.node.polygon
-        label = "({0:.6g}, {1:.6g})".format(cell.centroid.x,
+        label = "({0:.2g}, {1:.2g})".format(cell.centroid.x,
                                             cell.centroid.y)
         label = "{0:12}  first visit: {1}".format(
             label, stackelem.first_visit)

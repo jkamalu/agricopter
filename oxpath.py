@@ -12,6 +12,9 @@ class CellPath:
     def __init__(self, waypoints):
         self.waypoints = waypoints
         self.transition = [] # waypoints to move to the next cell
+
+    def start_point(self):
+        return self.waypoints[0]
     
     def add_transition(self, target_point, this_node, next_node):
         if next_node == None:
@@ -70,18 +73,20 @@ class CompletePath:
         """
         if len(cell.waypoints) > 0:
             start_point = cell.waypoints[0]
-        else:
-            start_point = cell.transition[0]
-
-        added_length = self.cells[-1].transition[-1].distance(
+            self.length += self.cells[-1].transition[-1].distance(
                                                      start_point)
-        prev_point = cell.transition[0]
-        for point in cell.transition[1:]:
-            added_length += prev_point.distance(point)
-            prev_point = point
 
         self.cells.append(cell)
-        self.length += added_length
+
+    def add_transition(self, target_point, prev_node, this_node):
+        self.cells[-1] = self.cells[-1].copy()
+        self.cells[-1].add_transition(target_point, prev_node,
+                                      this_node)
+
+        prev_point = self.cells[-1].transition[0]
+        for point in self.cells[-1].transition[1:]:
+            self.length += prev_point.distance(point)
+            prev_point = point
 
     def copy(self):
         """
@@ -183,54 +188,43 @@ def generate_path(stack, path_radius):
     # distance.
     heap = []
     # TODO: FIX THIS, not safe to assume 2 elements in the stack
-    this_node = stack[0].node
-    next_node = stack[1].node
-    target_point = stack[1].node.polygon.centroid
+#    this_node = stack[0].node
+#    next_node = stack[1].node
+#    target_point = stack[1].node.polygon.centroid
     for initial_cell in cell_paths[0]:
-        initial_cell.add_transition(target_point, this_node,
-                                    next_node)
+#        initial_cell.add_transition(target_point, this_node,
+#                                    next_node)
         heappush(heap, (0, CompletePath(initial_cell)))
 
     while True:
         priority, path = heappop(heap)
         index = len(path.cells)
+
         if index == len(stack):
-            return path
+            # this path already contains all the cells
+            if len(path.cells[-1].transition) > 0:
+                return path
+            else:
+                target_point = path.cells[0].waypoints[0]
+                prev_node = stack[-1].node
+                path.add_transition(target_point, prev_node,
+                                    None)
+                heappush(heap, (path.length, path))
+                continue
 
-        # determine the next point that the drone wants to get to
-        # after traversing this cell (either the centroid of the
-        # next cell that needs to be covered, or the starting
-        # point)
-        i = index + 1
-        while i < len(stack) and len(cell_paths[i]) == 0:
-            i += 1
-        if i == len(stack):
-            # TODO: FIX THIS, not necessarily safe to check
-            # waypoints[0]
-            target_point = path.cells[0].waypoints[0]
-        else:
-            target_point = stack[i].node.polygon.centroid
-
+        prev_node = stack[index-1].node
         this_node = stack[index].node
-        if index + 1 < len(stack):
-            next_node = stack[index + 1].node
-        else:
-            next_node = None
 
         if len(cell_paths[index]) > 0:
-            for cell in cell_paths[index]:
-                new_cell = cell.copy()
-                new_cell.add_transition(target_point,
-                                        this_node,
-                                        next_node)
+            for cell_path in cell_paths[index]:
                 new_path = path.copy()
-                new_path.add(new_cell)
+                new_path.add_transition(cell_path.start_point(),
+                                        prev_node, this_node)
+                new_path.add(cell_path)
                 heappush(heap, (new_path.length, new_path))
         else:
             # generate a path to traverse this cell
-            new_cell = CellPath([])
-            new_cell.add_transition(target_point,
-                                    this_node,
-                                    next_node)
-            path.add(new_cell)
+            path.add_transition(this_node.polygon.centroid,
+                                prev_node, this_node)
+            path.add(CellPath([]))
             heappush(heap, (path.length, path))
