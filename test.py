@@ -6,11 +6,11 @@ import parsepolygon
 from missionplanner import plan_complete_coverage_mission
 
 INPUT_FILE = "test_fields/test3.txt"
-DRONE_RADIUS = .06
+DRONE_RADIUS = .00002
 DRONE_ELEVATION = 10
 
-exterior = [(0, 0, 0), (0, 5, 0), (6, 6, 0), (5, -1, 0)]
-interior = [(1, 1, 0), (2, 1, 0), (1.5, 3, 0)]
+exterior = [(0,0,0),(0,.001,0),(.0012,.0012,0),(.001,-.0002,0)]
+interior = [(.0002,.0002,0),(.0005,.0002,0),(.0003,.0006,0)]
 test_with_interior = Polygon(exterior, [interior])
 
 if __name__ == '__main__':
