@@ -2,22 +2,20 @@
 # implementation found on github by Tushar Roy.
 # See his header below
 
-"""
-/**
-* Date 11/17/2015
-* @author Tushar Roy
-*
-* Help Karp method of finding tour of traveling salesman.
-*
-* Time complexity - O(2^n * n^2)
-* Space complexity - O(2^n)
-*
-* https://en.wikipedia.org/wiki/Held%E2%80%93Karp_algorithm
-*/
+# /**
+# * Date 11/17/2015
+# * @author Tushar Roy
+# *
+# * Help Karp method of finding tour of traveling salesman.
+# *
+# * Time complexity - O(2^n * n^2)
+# * Space complexity - O(2^n)
+# *
+# * https://en.wikipedia.org/wiki/Held%E2%80%93Karp_algorithm
+# */
+# 
+# Copyright 2015 Tushar Roy
 
-Copyright 2015 Tushar Roy
-
-"""
 
 class Node:
 	def __init__(self, load):
@@ -79,20 +77,13 @@ class Vertex:
 		return "(%d, %s)" %(self.vertex, str(self.vertex_set))
 
 def optimal_path(matrix):
-	# Generate matrix, each cell representing an edge
-	# between two nodes, as well as all possible
-	# subsets not including 0
 	subsets = generate_subsets(len(matrix))
 	current_optimals = {}
 	previous_optimals = {}
 
-	# For each subset generated, loop through every 
-	# index in matrix
 	for subset in subsets:
 		for current_index in range(1, len(matrix)):
 			
-			# Ignore the index if it is already in the
-			# subset
 			if current_index in subset:
 				continue
 
@@ -101,8 +92,6 @@ def optimal_path(matrix):
 			min_cost = float("inf")
 			min_prev_index = 0
 			
-			# Of all possible previous indeces in subset, select
-			# the one which yields the lowest cost
 			for prev_index in subset:
 				cost = (matrix[prev_index][current_index] + 
 				get_current_cost(subset_copy, prev_index, current_optimals)) 
@@ -110,17 +99,12 @@ def optimal_path(matrix):
 					min_cost = cost
 					min_prev_index = prev_index
 
-			# If subset is the empty set, find direct distance
-			# from the current index to the start index (0)
 			if len(subset) == 0:
 				min_cost = matrix[0][current_index]
 
-			# Update dictionaries with minimum cost and
-			# corresponding previous index for given index
 			current_optimals[vertex] = min_cost
 			previous_optimals[vertex] = min_prev_index
 
-	# Create set of all indeces and copy it
 	indeces = set()
 	for index in range(1, len(matrix)):
 		indeces.add(index)
@@ -129,15 +113,12 @@ def optimal_path(matrix):
 	min_cost = float("inf")
 	min_prev_index = -1
 
-	# Of all possible indeces in matrix, select the
-	# one which yields the lowest cost
 	for index in indeces:
 		cost = matrix[index][0] + get_current_cost(indeces_copy, index, current_optimals) 
 		if cost < min_cost:
 			min_cost = cost
 			min_prev_index = index
 
-	# The final step
 	vertex = Vertex(0, frozenset(indeces))
 	previous_optimals[vertex] = min_prev_index
 	return min_cost

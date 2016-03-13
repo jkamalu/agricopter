@@ -15,7 +15,7 @@ test_with_interior = Polygon(exterior, [interior])
 
 if __name__ == '__main__':
     polygon = parsepolygon.parse_polygon(INPUT_FILE)
-#    polygon = test_with_interior
+    polygon = test_with_interior
 
     visualization_data, mission = plan_complete_coverage_mission(
                                            polygon, DRONE_RADIUS,

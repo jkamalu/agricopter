@@ -1,11 +1,14 @@
 from shapely.geometry import Polygon
 
 def parse_polygon(file_name):
-
 	"""
 	This function parses a file to construct a polygon object.
 
-	Pre-requesite: (1) file_name should reference a .waypoints file and include the file extension e.g. "file_name.waypoints", and (2) the file referenced by file_name should be in the following format, and all bracketed values must throw no exception when input into the float() function.
+	Pre-requesite: (1) file_name should reference a .waypoints
+	file and include the file extension e.g. "file_name.waypoints", 
+	and (2) the file referenced by file_name should be in the 
+	following format, and all bracketed values must throw no 
+	exception when input into the float() function.
 
 		|point_id|latitude|longitude|altitude|
 		|<id_1>|<latitude_1>|<longitude_1>|<altitude_1>|
@@ -16,6 +19,7 @@ def parse_polygon(file_name):
 
 	Return: a Polygon instance as specified by the python shapely library.
 	"""
+
 	# list to build coordinates of polygon during creation
 	coords = []
 	file_in = open(file_name, 'r')
