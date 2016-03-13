@@ -1,14 +1,8 @@
-# This module builds a graph which relates each
-# polygon in terms of its neighbors with which
-# it shares a border
+# This module builds a graph which relates every polygon
+# to those with with it shares a border, using a Node/
+# Edge paradigm
 
 from shapely.geometry import Polygon, LineString
-
-class GraphMeta:
-	def __init__(self, start, node_count, nodes):
-		self.start = start
-		self.node_count = node_count
-		self.nodes = nodes
 
 class CellNode:
 	def __init__(self, polygon):
@@ -25,28 +19,42 @@ class CellEdge:
 
 def build_graph(cells):
 	"""
-	Accepts a list of Polygon objects and relies on the accuracy of the
-	shapely geometry library to generate a graph relating each Polygon
-	to its direct neighbors through a node/edge paradigm.
-
-	Returns the aforementioned graph referenced by a CellNode representing
-	the first Polygon in the original list of Polygons
+	build_graph generates a graph to represent the relationship between every
+	Polygon object in cells. Polygons which share a border share a common
+	CellEdge instance.
+	
+	Accepts: cells, a list of Polygon instances as defined in the shapely
+			 geometry library.
+	Returns: a list of initialized CellNode instances representing a graph
+			 of polygons and their interior borders.
 	"""
-
 	nodes = []
-
 	for cell in cells:
 		nodes.append(CellNode(cell))
-
+	
 	for i in range(0, len(cells)):
 		for j in range(i + 1, len(cells)):
+
+			# Find the intersection of the two relevant Polygons. Originally
+			# used the touching() method outlined in the shapely library but
+			# touches returns true for Polygons which share just a point and 
+			# not a full border.
 			intersection = nodes[i].polygon.intersection(nodes[j].polygon)
+
+			# If the intersection is an instance of a LineString i.e. if the
+			# intersection between the two Polygons is a line and thus a bona
+			# fide interior border
 			if isinstance(intersection, LineString):
+
+				# Create the edge and add the reference to the list of edges in each
+				# relevant CellNode instance.
 				edge = CellEdge(nodes[i], nodes[j])
 				edge.border_line = intersection
 				nodes[i].edges.append(edge)
 				nodes[j].edges.append(edge)
 
-	meta = GraphMeta(nodes[0], len(nodes), nodes)
+	return nodes
 
-	return meta
+
+
+

@@ -33,7 +33,7 @@ if __name__ == '__main__':
         locals()[var] = val
 
     waypoints = visualization_data['waypoints']
-    graph_meta = visualization_data['graph_meta']
+    graph_nodes = visualization_data['graph_nodes']
     stack = visualization_data['stack']
 
     fig = pyplot.figure(1, figsize=(5,5), dpi=90)
@@ -47,7 +47,7 @@ if __name__ == '__main__':
         x, y = interior.xy
         ax.plot(x, y, 'b', linewidth=2)
 
-    for node in graph_meta.nodes:
+    for node in graph_nodes:
         # Rotate cells back to original orientation
         node.polygon = shapely.affinity.rotate(node.polygon,
                                      -angle, origin=rotate_point)

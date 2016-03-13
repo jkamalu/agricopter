@@ -5,14 +5,13 @@ import cellgrapher
 import celllinker
 import oxpath
 
-from MissionGenerator import MissionGenerator
-from Command import Command
+from Mission import (Mission, Command)
 
 def plan_complete_coverage_mission(polygon, path_radius,
                                    drone_elevation):
     cells, angle, rotate_point = decompose.decompose(polygon)
-    graph_meta = cellgrapher.build_graph(cells)
-    stack = celllinker.optimal(graph_meta)
+    graph_nodes = cellgrapher.build_graph(cells)
+    stack = celllinker.optimal(graph_nodes)
     rotated_polygon = shapely.affinity.rotate(
         polygon, angle, origin=rotate_point)
     path = oxpath.generate_path(stack, path_radius,
@@ -32,7 +31,7 @@ def plan_complete_coverage_mission(polygon, path_radius,
         waypoints += cell_path.waypoints
         waypoints += cell_path.transition
 
-    mission = MissionGenerator()
+    mission = Mission()
     
     for waypoint in waypoints:
         mission.add_command(Command(16, waypoint.y, waypoint.x,
@@ -43,7 +42,7 @@ def plan_complete_coverage_mission(polygon, path_radius,
     # visualization of the algorithm
     visualization_data = {
         'waypoints': waypoints,
-        'graph_meta': graph_meta,
+        'graph_nodes': graph_nodes,
         'stack': stack,
         'angle': angle,
         'rotate_point': rotate_point,

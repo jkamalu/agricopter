@@ -1,21 +1,27 @@
-# This code was written as a trace of a java
-# implementation found on github by Tushar Roy.
-# See his header below
+# This python implementation of the Held-Karp algorithm is
+# based on a Java implementation found on GitHub written by
+# Tushar Roy under an Apache License. See his original header
+# below presented as a Java block comment.
 
-# /**
-# * Date 11/17/2015
-# * @author Tushar Roy
-# *
-# * Help Karp method of finding tour of traveling salesman.
-# *
-# * Time complexity - O(2^n * n^2)
-# * Space complexity - O(2^n)
-# *
-# * https://en.wikipedia.org/wiki/Held%E2%80%93Karp_algorithm
-# */
-# 
-# Copyright 2015 Tushar Roy
+# In the legal event that this python implementation requries 
+# more specific citation, see the copyright message just below 
+# the header.
 
+"""
+/**
+* Date 11/17/2015
+* @author Tushar Roy
+*
+* Help Karp method of finding tour of traveling salesman.
+*
+* Time complexity - O(2^n * n^2)
+* Space complexity - O(2^n)
+*
+* https://en.wikipedia.org/wiki/Held%E2%80%93Karp_algorithm
+*/
+
+Copyright 2015 Tushar Roy
+"""
 
 class Node:
 	def __init__(self, load):
