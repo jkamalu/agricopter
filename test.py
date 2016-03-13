@@ -5,7 +5,7 @@ from matplotlib import pyplot
 import parsepolygon
 from missionplanner import plan_complete_coverage_mission
 
-INPUT_FILE = "test_fields/test3.txt"
+INPUT_FILE = "test_fields/test1.txt"
 DRONE_RADIUS = .00002
 DRONE_ELEVATION = 10
 

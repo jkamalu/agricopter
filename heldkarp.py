@@ -38,6 +38,9 @@ class NodeEdgeMatrix:
 
 	def __getitem__(self, a):
 		return self.matrix[a]	
+
+	def __len__(self):
+		return len(self.matrix)
 		
 	# Very inefficient method - need way to remember
 	# the index of each node in 'nodes' so that
@@ -45,10 +48,10 @@ class NodeEdgeMatrix:
 	def build_matrix(self, nodes):
 		matrix = []
 		num_nodes = len(nodes)
-		for i in range(num_nodes):
+		for i in range(0, num_nodes):
 			matrix.append([])
-		for row in range(num_nodes):
-			for col in range(num_nodes):
+		for row in range(0, num_nodes):
+			for col in range(0, num_nodes):
 				if nodes[row] is nodes[col]:
 					matrix[row].append(0)
 					continue
@@ -58,7 +61,7 @@ class NodeEdgeMatrix:
 						matrix[row].append(edge.weight)
 						connected = True
 				if connected is False:
-					matrix[i].append(float("inf"))
+					matrix[row].append(float("inf"))
 		return matrix
 
 class Vertex:
@@ -96,7 +99,7 @@ def optimal_path(matrix):
 			if current_index in subset:
 				continue
 
-			vertex = vertex(current_index, frozenset(subset))
+			vertex = Vertex(current_index, frozenset(subset))
 			subset_copy = set(subset)
 			min_cost = float("inf")
 			min_prev_index = 0
