@@ -8,6 +8,15 @@ from shapely.geometry import (Point, Polygon,
                               MultiPolygon)
 import pdb
 
+class Cell:
+    def __init__(self, polygon, parent = None):
+        self.polygon = polygon
+        self.parent = parent
+        self.children = []
+
+    def add_child(self, cell):
+        self.children.append(cell)
+
 def decompose(polygon):
     """
     Generates boustrophedon decompositions of the given polygon,
@@ -119,7 +128,10 @@ def decompose_helper(polygon, angle=0):
             # it is more convenient to only have trapezoidal cells, so we
             # consider all points to be critical points. To change this,
             # replace "pass" with "continue".
-            pass
+            cut_cell = True
+
+
+        if (cut_cell):
 
         # Create new cell(s) by slicing the polygon with a vertical
         # line at this point

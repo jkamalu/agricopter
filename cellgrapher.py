@@ -54,7 +54,3 @@ def build_graph(cells):
 				nodes[j].edges.append(edge)
 
 	return nodes
-
-
-
-
