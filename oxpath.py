@@ -2,8 +2,10 @@
 # for a field that has already been decomposed and linked into an
 # ordered list of cells.
 
+import shapely.affinity
 from shapely.geometry import Point, LineString, LinearRing
 from heapq import heappush, heappop # priority queue
+import copy
 
 class CellPath:
     """
@@ -11,49 +13,158 @@ class CellPath:
     """
     def __init__(self, waypoints):
         self.waypoints = waypoints
-        self.transition = [] # waypoints to move to the next cell
 
     def start_point(self):
         return self.waypoints[0]
 
     def end_point(self):
-        if len(self.transition) > 0:
-            return self.transition[-1]
-        else:
-            return self.waypoints[-1]
-    
-    def add_transition(self, target_point, this_node, next_node):
-        # find the edge between this cell and the next
-        for edge in this_node.edges:
-            if (edge.node_a == next_node or
-                edge.node_b == next_node):
+        return self.waypoints[-1]
+
+class Transition:
+    """
+    A list of waypoints to move between a coverage path for one cell
+    and the coverage path for the following cell.
+    """
+    def __init__(self, start_node, end_node, start_point, end_point,
+                 graph_traps, eroded_polygon):
+        self.graph_traps = graph_traps
+
+        ## STEP 1. Determine a path through the graph of trapezoids
+        ## to get from the start point to the end point
+
+        # Determine which trapezoid contains the start point
+        for trap_start in start_node.children:
+            if trap_start.polygon.contains(start_point):
                 break
         else:
-            raise Exception('No edge found between this node '
-                            'and next node in stack')
+            raise Exception("None of the children of start node "
+                            "contains start point")
 
-        border = edge.border_line
-        passing_point = border.interpolate(border.project(
-                                                   target_point))
-        if this_node.eroded != None:
-            exterior = this_node.eroded.exterior
-            point = exterior.interpolate(exterior.project(
-                                                  passing_point))
-            self.transition.append(point)
-
-        if next_node.eroded == None:
-            self.transition.append(next_node.polygon.centroid)
+        # Determine which trapezoid contains the end point
+        for trap_end in end_node.children:
+            if trap_end.polygon.contains(end_point):
+                break
         else:
-            exterior = next_node.eroded.exterior
-            point = exterior.interpolate(exterior.project(
-                                                  passing_point))
-            self.transition.append(point)
+            raise Exception("None of the children of end node "
+                            "contains end point")
 
-    def copy(self):
-        waypoints_copy = self.waypoints[:]
-        cell_copy = CellPath(waypoints_copy)
-        cell_copy.transition = self.transition[:]
-        return cell_copy
+        trap_sequence = [trap_start]
+        self.mark_traps_unvisited()
+        trap_start.visited = True
+        self.find_seq_to_next_cell(trap_sequence, trap_end)
+
+        ## STEP 2. Generate a list of transition waypoints
+
+        self.waypoints = [start_point]
+        trap_index = 0
+
+        while True:
+            # try to go directly to target
+            # TODO: deal with case were, even once in the final
+            # cell, the drone isn't able to fly directly to the
+            # target for some reason
+            current_point = self.waypoints[-1]
+            if current_point.equals(end_point):
+                break
+
+            line = LineString([(current_point.x, current_point.y),
+                               (end_point.x, end_point.y)])
+            assert line.is_valid
+
+            if eroded_polygon.contains(line):
+                self.waypoints.append(end_point)
+                break
+
+            curr_trap = trap_sequence[trap_index]
+            next_trap = trap_sequence[trap_index + 1]
+
+            # find the edge between this trapezoid and the next
+            for edge in curr_trap.edges:
+                if (edge.node_a == next_trap or
+                    edge.node_b == next_trap):
+                    break
+            else:
+                raise Exception('No edge found between this '
+                                'trapezoid and next trapezoid in '
+                                'sequence')
+
+            border = edge.border_line
+            passing_point = border.interpolate(border.project(
+                                                       end_point))
+            if curr_trap.eroded != None:
+                exterior = curr_trap.eroded.exterior
+                point = exterior.interpolate(exterior.project(
+                                                      passing_point))
+                self.waypoints.append(point)
+
+            if next_trap.eroded == None:
+                self.waypoints.append(next_trap.polygon.centroid)
+            else:
+                exterior = next_trap.eroded.exterior
+                point = exterior.interpolate(exterior.project(
+                                                      passing_point))
+                self.waypoints.append(point)
+
+            trap_index += 1
+
+        # Calculate the length of this transition
+        self.length = 0
+        prev_point = self.waypoints[0]
+        for point in self.waypoints[1:]:
+            self.length += prev_point.distance(point)
+            prev_point = point
+
+    def find_seq_to_next_cell(self, trap_sequence, trap_end):
+        """
+        Returns True if a sequence to the next cell was successfully
+        found (i.e. trap_sequence is now complete), False otherwise.
+        """
+        trap_start = trap_sequence[-1]
+        if trap_start is trap_end:
+            return True
+
+        neighbors = []
+        for edge in trap_start.edges:
+            if edge.node_a is trap_start:
+                neighbor = edge.node_b
+            else:
+                neighbor = edge.node_a
+            if not neighbor.visited:
+                neighbors.append(neighbor)
+
+        neighbors.sort(key=lambda n : n.polygon.distance(
+                                                trap_end.polygon))
+        for neighbor in neighbors:
+            trap_sequence.append(neighbor)
+            neighbor.visited = True
+            success = self.find_seq_to_next_cell(trap_sequence,
+                                                 trap_end)
+            if success:
+                return True
+            else:
+                trap_sequence.pop()
+
+        return False
+
+    def mark_traps_unvisited(self):
+        for node in self.graph_traps:
+            node.visited = False
+
+    def start_point(self):
+        return self.waypoints[0]
+
+    def end_point(self):
+        return self.waypoints[-1]
+
+def rotate_path(path, angle, origin):
+    """
+    Rotate all the waypoints in a cell path or transition by the
+    given angle around the given origin.
+    """
+    for i in xrange(0, len(path.waypoints)):
+        path.waypoints[i] = shapely.affinity.rotate(
+                                path.waypoints[i], angle,
+                                origin=origin)
 
 class CompletePath:
     """
@@ -62,74 +173,68 @@ class CompletePath:
     """
     def __init__(self, initial_cell, eroded_polygon):
         self.cells = [initial_cell] # list of CellPaths
-        self.length = 0 # total length of connecting lines
+        self.transitions = [] # list of transitions
+        self.length = 0 # total length of transitions
                         # between cells (i.e. not including the
                         # distance spent covering each cell, just
                         # the distance going from one cell to
                         # the next one)
-        self.cells_traversed = 1
         self.polygon = eroded_polygon
 
-    def add(self, cell_path):
+    def cells_traversed(self):
+        return len(self.cells)
+
+    def add_cell_path(self, cell_path):
+        if not self.has_transition():
+            raise Exception("Tried to append cell path without "
+                            "first adding a transition")
+
         self.cells.append(cell_path)
-        self.cells_traversed += 1
 
     def start_point(self):
-        return self.cells[0].waypoints[0]
+        return self.cells[0].start_point()
+
+    def end_point(self):
+        if self.has_transition():
+            return self.transitions[-1].end_point()
+        else:
+            return self.cells[-1].end_point()
 
     def has_transition(self):
-        return len(self.cells[-1].transition) > 0
+        return len(self.cells) == len(self.transitions)
 
-    def add_transition(self, target_point, stack, index,
-                       cells_traversed):
-        self.cells[-1] = self.cells[-1].copy()
-        self.cells_traversed += cells_traversed
+    def add_transition(self, this_node, next_node,
+                       start_point, end_point, graph_traps):
+        if self.has_transition():
+            raise Exception("Tried to add transition when "
+                            "transition was already present")
 
-        self.cells[-1].transition.append(
-            self.cells[-1].end_point())
-
-        while True:
-            # try to go directly to target
-            # TODO: deal with case were, even once in the final
-            # cell, the drone isn't able to fly directly to the
-            # target for some reason
-            current_point = self.cells[-1].end_point()
-            if current_point.equals(target_point):
-                break
-
-            line = LineString([(current_point.x, current_point.y),
-                               (target_point.x, target_point.y)])
-            assert line.is_valid
-
-            if self.polygon.contains(line):
-                self.cells[-1].transition.append(target_point)
-                break
-
-            # move into the next cell
-            try:
-                self.cells[-1].add_transition(target_point,
-                                          stack[index].node,
-                                          stack[index+1].node)
-            except Exception:
-                print index
-
-            index += 1
-
-        prev_point = self.cells[-1].transition[0]
-        for point in self.cells[-1].transition[1:]:
-            self.length += prev_point.distance(point)
-            prev_point = point
+        transition = Transition(this_node, next_node, start_point,
+                                end_point, graph_traps, self.polygon)
+        self.transitions.append(transition)
+        self.length += transition.length
 
     def copy(self):
         """
-        Return a copy of this CompletePath, using a shallow copy
-        of the list of CellPaths.
+        Return a shallow copy of this CompletePath, with additional
+        shallow copies of the cell and transition lists so that they
+        can safely be modified in the copy.
         """
-        path_copy = CompletePath(None, self.polygon)
-        path_copy.cells = self.cells[:]
-        path_copy.length = self.length
-        path_copy.cells_traversed = self.cells_traversed
+        path_copy = copy.copy(self)
+        path_copy.cells = copy.copy(self.cells)
+        path_copy.transitions = copy.copy(self.transitions)
+
         return path_copy
+
+    def rotate(self, angle, origin):
+        """
+        Rotate all the waypoints that make up the cell paths and
+        transitions by the given angle around the given origin.
+        """
+        for cell_path in self.cells:
+            rotate_path(cell_path, angle, origin)
+        for transition in self.transitions:
+            rotate_path(transition, angle, origin)
 
 def traversal_endpoints(polygon, x, miny, maxy):
     line = LineString([(x, miny - 1), (x, maxy + 1)])
@@ -163,12 +268,13 @@ def generate_cell_path(bottoms, tops, start_top, start_left):
 
     return CellPath(waypoints)
 
-def possible_paths(polygon, path_radius):
+def possible_paths(node, path_radius):
     """
-    Node: the polygon passed should have already been eroded
-    before calling this function to ensure a safe margin for the
-    drone.
+    Note: the node passed should already have a .eroded property,
+    as generated by generate_eroded_nodes() (and not equal to
+    None).
     """
+    polygon = node.eroded
     minx, miny, maxx, maxy = polygon.bounds
     bottoms = []
     tops = []
@@ -189,8 +295,39 @@ def possible_paths(polygon, path_radius):
         generate_cell_path(bottoms, tops, False, False)
     ]
 
-def generate_path(stack, path_radius, polygon):
+def generate_eroded_nodes(stack, path_radius):
+    """
+    For each cell (node) in the stack, generate an eroded version
+    of its polygon, as well as an eroded version of each of its
+    child trapezoids. These eroded versions are used when generating
+    the path to make sure the drone does not pass too close to the
+    edge of the field.
+    """
+    for node in stack:
+        node.eroded = node.polygon.buffer(-path_radius)
+        if not isinstance(node.eroded.exterior, LinearRing):
+            # After eroding, the cell disappeared completely,
+            # meaning it was too small for the drone to
+            # safely drop pesticides on it
+            node.eroded = None
+        for child in node.children:
+            child.eroded = child.polygon.buffer(-path_radius)
+            if not isinstance(child.eroded.exterior, LinearRing):
+                child.eroded = None
+
+def remove_uncoverable_cells(stack):
+    """
+    Remove all the cells in the stack that cannot be covered
+    because they are too small (the eroded version has zero area)
+    """
+    stack[:] = [node for node in stack
+                if node.eroded != None]
+
+def generate_path(stack, path_radius, polygon, graph_traps):
     eroded_polygon = polygon.buffer(-path_radius / 2)
+
+    generate_eroded_nodes(stack, path_radius)
+    remove_uncoverable_cells(stack)
 
     # Generate all possible ox paths for each of the individual
     # cells (linear time), as CellPath objects. The indices of
@@ -198,58 +335,41 @@ def generate_path(stack, path_radius, polygon):
     # paths for the cell at stack[i] are stored in a list at
     # cell_paths[i].
     cell_paths = []
-    for elem in stack:
-        if not hasattr(elem.node, 'eroded'):
-            # Generate an eroded version of this cell (with the
-            # edges pulled inward by path_radius)
-            elem.node.eroded = elem.node.polygon.buffer(
-                                                    -path_radius)
-            if not isinstance(elem.node.eroded.exterior,
-                              LinearRing):
-                # After eroding, the cell disappeared completely,
-                # meaning it was too small for the drone to
-                # safely drop pesticides on it
-                elem.node.eroded = None
-
-        if elem.first_visit and elem.node.eroded != None:
-            cell_paths.append(possible_paths(elem.node.eroded,
-                                             path_radius))
-        else:
-            # leave it to the second part of the algorithm
-            # (below) to figure out how to traverse this cell
-            cell_paths.append([])
+    for node in stack:
+        cell_paths.append(possible_paths(node, path_radius))
         
     # Find a CompletePath that covers the field in the minimum
     # distance.
+
+    # heap is a priority queue containing partially complete coverage
+    # paths, prioritized so that a pop will remove the shortest path
     heap = []
     for initial_cell in cell_paths[0]:
         heappush(heap, (0, CompletePath(initial_cell,
                                         eroded_polygon)))
 
     while True:
+        # pop the shortest path from the heap
         priority, path = heappop(heap)
-        index = path.cells_traversed
+        index = path.cells_traversed()
 
-        i = index
-        while i < len(stack):
-            if len(cell_paths[i]) > 0:
-                break
-            i += 1
-
-        if i == len(stack):
+        if index == len(stack):
             if path.has_transition():
                 return path
             else:
                 # add transition back to start point
-                path.add_transition(path.start_point(),
-                                    stack, index-1,
-                                    cells_traversed=0)
+                path.add_transition(stack[-1], stack[0],
+                       path.end_point(), path.start_point(),
+                       graph_traps)
+
                 heappush(heap, (path.length, path))
                 continue
 
-        for cell_path in cell_paths[i]:
+        for cell_path in cell_paths[index]:
             new_path = path.copy()
-            new_path.add_transition(cell_path.start_point(),
-                                    stack, index-1, i - index)
-            new_path.add(cell_path)
+            new_path.add_transition(stack[index-1], stack[index],
+                                    new_path.end_point(),
+                                    cell_path.start_point(),
+                                    graph_traps)
+            new_path.add_cell_path(cell_path)
             heappush(heap, (new_path.length, new_path))

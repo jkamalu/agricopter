@@ -5,7 +5,7 @@ from matplotlib import pyplot
 import parsepolygon
 from missionplanner import plan_complete_coverage_mission
 
-INPUT_FILE = "test_fields/test3.txt"
+INPUT_FILE = "test_fields/test4.txt"
 DRONE_RADIUS = .00002
 DRONE_ELEVATION = 10
 
@@ -15,7 +15,7 @@ test_with_interior = Polygon(exterior, [interior])
 
 if __name__ == '__main__':
     polygon = parsepolygon.parse_polygon(INPUT_FILE)
-    polygon = test_with_interior
+#    polygon = test_with_interior
 
     visualization_data, mission = plan_complete_coverage_mission(
                                            polygon, DRONE_RADIUS,
@@ -31,10 +31,6 @@ if __name__ == '__main__':
     # as all the items in the visualization_data dict.
     for var, val in visualization_data.iteritems():
         locals()[var] = val
-
-    waypoints = visualization_data['waypoints']
-    graph_nodes = visualization_data['graph_nodes']
-    stack = visualization_data['stack']
 
     fig = pyplot.figure(1, figsize=(5,5), dpi=90)
     ax = fig.add_subplot(111)
@@ -68,23 +64,11 @@ if __name__ == '__main__':
             fontsize=10, verticalalignment='center',
             horizontalalignment='center')
 
-    # Display chosen path for drone (solid green line)
-    for i in xrange(0, len(path.cells)):
-        if len(path.cells[i].waypoints) > 0:
-            path.cells[i].transition.insert(
-                0, path.cells[i].waypoints[-1])
-
-        if i < len(path.cells) - 1:
-            if len(path.cells[i+1].waypoints) > 0:
-                path.cells[i].transition.append(
-                    path.cells[i+1].waypoints[0])
-            else:
-                path.cells[i].transition.append(
-                    path.cells[i+1].transition[0])
-
-    for cell_path in path.cells:
-        ax.plot([waypoint.x for waypoint in cell_path.transition],
-                [waypoint.y for waypoint in cell_path.transition],
+    # Display chosen path for drone (solid green line, with
+    # transitions between cells shown by thicker, cyan lines)
+    for transition in path.transitions:
+        ax.plot([waypoint.x for waypoint in transition.waypoints],
+                [waypoint.y for waypoint in transition.waypoints],
                 'c', linewidth=2)
     for cell_path in path.cells:
         ax.plot([waypoint.x for waypoint in cell_path.waypoints],
@@ -95,11 +79,9 @@ if __name__ == '__main__':
     # they should be traversed according to the results of
     # celllinker.optimal()
     for stackelem in stack:
-        cell = stackelem.node.polygon
+        cell = stackelem.polygon
         label = "({0:.2g}, {1:.2g})".format(cell.centroid.x,
                                             cell.centroid.y)
-        label = "{0:12}  first visit: {1}".format(
-            label, stackelem.first_visit)
         print label
 
     pyplot.show()

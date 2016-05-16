@@ -18,14 +18,6 @@ import cellgrapher
 # graph
 TOTAL_TIME = 5
 
-# A wrapper class to keep track of whether a node needs
-# to be given a coverage path on its first pass-through
-# with the drone
-class StackElem:
-    def __init__(self, node, first_visit):
-        self.node = node
-        self.first_visit = first_visit
-
 def optimal(graph_nodes):
 	"""
 	This is the wrapper method in the optimal/optimal_helper method pair.
@@ -66,7 +58,7 @@ def optimal(graph_nodes):
 		# node
 		while (time.time() - start_time) < time_per_node or not found_path:
 			stack = []
-			optimal_helper(node, stack, len(graph_nodes))
+			optimal_helper(node, stack)
 
 			# Mark every node visited = False for further iterations and
 			# coverage paths
@@ -88,50 +80,49 @@ def optimal(graph_nodes):
 
 	return final_stack
 
-def optimal_helper(node, stack, to_visit):
+def optimal_helper(node, stack):
 	"""
 	This is the recursive method in the optimal/optimal_helper method pair.
 	Accepts: node - the CellNode from which to start searching for the 
 			 coverage path.
-			 stack - an empty list meant to hold the complete coverage path.
-			 to_visit - the total number of cells which have yet to be found
-			 by the algorithm.
-	Alters: stack - (1) every time a node which has not been visited is found
-					(2) every time the path must backtrack because it has
-						reached a dead end
+			 stack - an empty list meant to hold the complete coverage path
+	Alters:  stack - every time a node which has not been visited is found
+	Returns: The number of times the path passes back through a cell that
+	         had already been visited (note that these extraneous passes
+	         through cells are NOT added to the stack). This includes passing
+	         through cells to return to the starting position.
 	"""
 	# We've found an unvisited node, so mark it as visited and
-	# append a new StackElem instance to the stack indicating that
-	# this is the first time the node has been visited.
+	# append it to the stack
 	node.visited = True
-	stack.append(StackElem(node, first_visit=True))
-
-	# Base case: every single node has been visited at least once.
-	if to_visit == 0:
-		return None
+	stack.append(node)
 
 	# For the current node, shuffle its edges to simulate, in
 	# conjunction with multiple passes from the same starting 
 	# node, an exhaustive search.
 	shuffle(node.edges)
 
-	# For each of the current node's edges, i.e. for each of the
-	# current node's neighbors, determine whether to visit and 
-	# recur, or to skip and move on to the next neighbor.
+	extraneous_visits = 0
+
+	# For each of the current node's edges, check if the corresponding
+	# neighbor has been visited. If it hasn't, call optimal_helper()
+	# recursively on that neighbor.
 	for edge in node.edges:
 		next_node = get_neighbor(node, edge)
 
-		# Recursive case: if the node has never been visited before,
-		# recurse with next_node as the base node and with to_visit 
-		# indicating that there is one less node to visit. 
+		# If the node has never been visited before, recurse with
+		# next_node as the base node
 		if next_node.visited is False:
-			optimal_helper(next_node, stack, to_visit - 1)
+			extraneous_visits += optimal_helper(next_node, stack)
 
-			# optimal_helper() returns in two cases, (1) when every node
-			# has been visited and (2) when a node no longer has any
-			# unvisited neighbors. These additions to the stack are all
-			# node revisits and/or the path back home.
-			stack.append(StackElem(node, first_visit=False))
+			# The path passes back through this cell, either as a transition
+			# to another unvisited cell or as part of the return home.
+			extraneous_visits += 1
+
+	# Note that optimal_helper() will only return when this node has no
+	# unvisited neighbors. If this is the outermost call to optimal_helper(),
+	# every node in the graph has been visited.
+	return extraneous_visits
 
 # Utility method to mark each node as visited = False.
 def optimal_cleanup(nodes):
