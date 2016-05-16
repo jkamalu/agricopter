@@ -8,16 +8,36 @@ from shapely.geometry import (Point, Polygon,
                               MultiPolygon)
 import pdb
 
-class Cell:
-    def __init__(self, polygon, parent = None):
+class CellNode:
+    def __init__(self, polygon):
+        self.polygon = polygon
+        self.children = []
+        self.edges = []
+        self.visited = False
+
+    def add_child(self, cell_node):
+        self.children.append(cell_node)
+
+    def add_edge(self, edge):
+        self.edges.append(edge)
+
+class CellTrap:
+    def __init__(self, polygon, parent):
         self.polygon = polygon
         self.parent = parent
-        self.children = []
+        self.edges = []
+        self.visited = False
 
-    def add_child(self, cell):
-        self.children.append(cell)
+    def add_edge(self, edge):
+        self.edges.append(edge)
 
-def decompose(polygon):
+class Edge:
+    def __init__(self, node_a, node_b, border_line=None):
+        self.node_a = node_a
+        self.node_b = node_b
+        self.border_line = border_line
+
+def decompose(field):
     """
     Generates boustrophedon decompositions of the given polygon,
     passing a line from left to right while rotating the polygon
@@ -43,9 +63,10 @@ def decompose(polygon):
     """
     decompositions = []
     for angle in xrange(0, 180, 15):
-        decomposition = decompose_helper(polygon, angle)
-        decompositions.append((decomposition[0], angle,
-                               decomposition[1]))
+        rotate_point = field.representative_point()
+        polygon = shapely.affinity.rotate(Polygon(field), angle, origin=rotate_point)
+        decomposition = decompose_helper(polygon)
+        decompositions.append((decomposition, angle, rotate_point))
 
     # Choose the best decomposition, using the size of the
     # smallest polygon in the decomposition as a heuristic, and
@@ -57,9 +78,14 @@ def decompose(polygon):
             max_heuristic = heuristic
             index = i
 
-    return decompositions[index]
+    finalCellNodes, finalAngle, finalRotatePoint = decompositions[index]
+    finalCellTraps = []
+    for cell_node in finalCellNodes:
+        finalCellTraps.extend(decompose_further(cell_node))
 
-def decompose_helper(polygon, angle=0):
+    return (finalCellNodes, finalCellTraps, finalAngle, finalRotatePoint)
+
+def decompose_helper(polygon):
     """
     Decomposes the given Polygon into cells that can be easily
     covered by a simple, "ox-like" path.
@@ -75,39 +101,20 @@ def decompose_helper(polygon, angle=0):
         rotated. Note that the decomposed cells will still be
         rotated about this point when they are returned.
     """
-    # copy the polygon, since we will destructively modify it
-    polygon = Polygon(polygon)
-
-    # Rotate
-    rotate_point = polygon.representative_point()
-    polygon = shapely.affinity.rotate(polygon, angle,
-                                      origin=rotate_point)
-
     # Assemble a list of all interior and exterior vertices
-    coords = polygon.exterior.coords
-    coords = coords[:-1] # last coord is a repeat of the first
-    if len(coords) <= 2: return [] # this is a line, not a polygon
-    for interior_ring in polygon.interiors:
-        interior_coords = interior_ring.coords
-        interior_coords = interior_coords[:-1]
-        coords += interior_coords
+    coords = get_coords(polygon)
 
-    minx, miny, maxx, maxy = polygon.bounds
-    start_line = LineString([(minx - 1, miny - 1),
-                             (minx - 1, maxy + 1)])
-    end_line = LineString([(maxx + 1, miny - 1),
-                           ( maxx + 1, maxy + 1)])
+    # Create start_line and end_line
+    start_line = get_start_line(polygon)
+    end_line = get_end_line(polygon)
 
     # Sort the indices so that we consider the vertices closest to
     # the start line first, and the farthest vertices last. This
     # creates the effect of passing the line from left to right
     # through the polygon.
-    sorted_indices = range(0, len(coords))
-    sorted_indices.sort(
-        key=lambda index:
-        Point(coords[index]).distance(start_line))
+    sorted_indices = sort_indices(coords, start_line)
 
-    cells = []
+    cell_nodes = []
     for index in sorted_indices:
         point = Point(coords[index])
         dist = point.distance(start_line)
@@ -128,28 +135,85 @@ def decompose_helper(polygon, angle=0):
             # it is more convenient to only have trapezoidal cells, so we
             # consider all points to be critical points. To change this,
             # replace "pass" with "continue".
-            cut_cell = True
-
-
-        if (cut_cell):
+            continue
 
         # Create new cell(s) by slicing the polygon with a vertical
         # line at this point
         box = start_line.union(point).envelope
-        new_cell = box.intersection(polygon)
-        if isinstance(new_cell, Polygon):
-            cells.append(new_cell)
-        elif (isinstance(new_cell, GeometryCollection) or
-              isinstance(new_cell, MultiPolygon)):
-            for item in new_cell:
+        new_polygon = box.intersection(polygon)
+        if isinstance(new_polygon, Polygon):
+            cell_nodes.append(CellNode(new_polygon))
+        elif (isinstance(new_polygon, GeometryCollection) or
+              isinstance(new_polygon, MultiPolygon)):
+            for item in new_polygon:
                 if isinstance(item, Polygon):
-                    cells.append(item)
+                    cell_nodes.append(CellNode(item))
 
         remainder_box = end_line.union(point).envelope
         polygon = polygon.intersection(remainder_box)
-    
 
-    return (cells, rotate_point)
+    return cell_nodes
+
+def decompose_further(cell_node):
+    cell_polygon = Polygon(cell_node.polygon)
+
+    coords = get_coords(cell_polygon)
+    
+    start_line = get_start_line(cell_polygon)
+    end_line = get_end_line(cell_polygon)
+    
+    sorted_indices = sort_indices(coords, start_line)
+
+    cell_traps = []
+    for index in sorted_indices:
+        point = Point(coords[index])
+
+        box = start_line.union(point).envelope
+        new_polygon = box.intersection(cell_polygon)
+
+        if isinstance(new_polygon, Polygon):
+            cell_trap = CellTrap(new_polygon, parent=cell_node)
+            cell_node.add_child(cell_trap)
+            cell_traps.append(cell_trap)
+        elif (isinstance(new_polygon, GeometryCollection) or
+              isinstance(new_polygon, MultiPolygon)):
+            for item in new_polygon:
+                if isinstance(item, Polygon):
+                    cell_trap = CellTrap(item, parent=cell_node)
+                    cell_node.add_child(cell_trap)
+                    cell_traps.append(cell_trap)
+
+        remainder_box = end_line.union(point).envelope
+        cell_polygon = cell_polygon.intersection(remainder_box)
+        
+    return cell_traps
+
+def get_coords(polygon):
+    coords = polygon.exterior.coords
+    coords = coords[:-1] # last coord is a repeat of the first
+    if len(coords) <= 2: return [] # this is a line, not a polygon
+    for interior_ring in polygon.interiors:
+        interior_coords = interior_ring.coords
+        interior_coords = interior_coords[:-1]
+        coords += interior_coords
+    return coords
+
+def get_start_line(polygon):
+    minx, miny, maxx, maxy = polygon.bounds
+    return LineString([(minx - 1, miny - 1),
+                       (minx - 1, maxy + 1)])
+
+def get_end_line(polygon):
+    minx, miny, maxx, maxy = polygon.bounds
+    return LineString([(maxx + 1, miny - 1),
+                       (maxx + 1, maxy + 1)])
+
+def sort_indices(indices, line):
+    sorted_indices = range(0, len(indices))
+    sorted_indices.sort(
+        key=lambda index:
+        Point(indices[index]).distance(line))
+    return sorted_indices
 
 def smallest_polygon_area(polygon_list):
     """
@@ -160,9 +224,9 @@ def smallest_polygon_area(polygon_list):
         # TODO: raise an exception here?
         return 0
 
-    smallest_area = polygon_list[0].area
+    smallest_area = polygon_list[0].polygon.area
     for i in range(1, len(polygon_list)):
-        if polygon_list[i].area < smallest_area:
-            smallest_area = polygon_list[i].area
+        if polygon_list[i].polygon.area < smallest_area:
+            smallest_area = polygon_list[i].polygon.area
 
     return smallest_area

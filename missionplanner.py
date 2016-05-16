@@ -9,8 +9,10 @@ from Mission import (Mission, Command)
 
 def plan_complete_coverage_mission(polygon, path_radius,
                                    drone_elevation):
-    cells, angle, rotate_point = decompose.decompose(polygon)
-    graph_nodes = cellgrapher.build_graph(cells)
+    nodes, traps, angle, rotate_point = decompose.decompose(polygon)
+    graph_nodes = cellgrapher.build_graph(nodes)
+    graph_traps = cellgrapher.build_graph(traps)
+    cellgrapher.debug_print_graph(graph_nodes)
     stack = celllinker.optimal(graph_nodes)
     rotated_polygon = shapely.affinity.rotate(
         polygon, angle, origin=rotate_point)
