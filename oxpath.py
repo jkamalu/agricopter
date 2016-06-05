@@ -9,9 +9,13 @@ import copy
 
 class CellPath:
     """
-    A coverage path for an individual cell.
+    A wrapper class containing a list of waypoints for the drone to
+    cover a single cell.
     """
     def __init__(self, waypoints):
+        """
+        waypoints: a list of shapely Point objects
+        """
         self.waypoints = waypoints
 
     def start_point(self):
@@ -22,57 +26,124 @@ class CellPath:
 
 class Transition:
     """
-    A list of waypoints to move between a coverage path for one cell
-    and the coverage path for the following cell.
+    A class that generates a list of waypoints for the drone to pass
+    from one point in the polygon to another point in the polygon.
+    Used to generate transitions between the coverage path for one
+    cell and the coverage path for the following cell (or a path to
+    return to the starting point).
     """
     def __init__(self, start_node, end_node, start_point, end_point,
                  graph_traps, eroded_polygon):
+        """
+        start_node:     The CellNode in which the transition begins
+        end_node:       The CellNode in which the transition ends
+        start_point:    The point (shapely Point object) at which the
+                        transition begins. Should be within the start
+                        node.
+        end_point:      The point at which the transition ends.
+                        Should be within the end node.
+        graph_traps:    A list of CellTrap objects representing the
+                        graph of trapezoids, as returned by
+                        cellgrapher.build_graph().
+        eroded_polygon: The polygon representing the field, with its
+                        edges eroded to ensure a safe radius for the
+                        drone.
+        """
+        self.start_node = start_node
+        self.end_node = end_node
+        self.start_point = start_point
+        self.end_point = end_point
         self.graph_traps = graph_traps
+        self.eroded_polygon = eroded_polygon
 
-        ## STEP 1. Determine a path through the graph of trapezoids
-        ## to get from the start point to the end point
+        # Determine a path through the graph of trapezoids to get
+        # from the start point to the end point
+        self.trap_start, self.trap_end = self.find_start_and_end()
+        trap_sequence = [self.trap_start]
+        self.mark_traps_unvisited()
+        self.find_seq_to_end(trap_sequence)
 
+        # Generate a list of transition waypoints using this path
+        self.generate_waypoints(trap_sequence)
+
+        # Calculate the length of this transition
+        self.update_length()
+
+    def find_start_and_end(self):
         # Determine which trapezoid contains the start point
-        for trap_start in start_node.children:
-            if trap_start.polygon.contains(start_point):
+        for trap_start in self.start_node.children:
+            if trap_start.polygon.contains(self.start_point):
                 break
         else:
             raise Exception("None of the children of start node "
                             "contains start point")
 
         # Determine which trapezoid contains the end point
-        for trap_end in end_node.children:
-            if trap_end.polygon.contains(end_point):
+        for trap_end in self.end_node.children:
+            if trap_end.polygon.contains(self.end_point):
                 break
         else:
             raise Exception("None of the children of end node "
                             "contains end point")
 
-        trap_sequence = [trap_start]
-        self.mark_traps_unvisited()
-        trap_start.visited = True
-        self.find_seq_to_next_cell(trap_sequence, trap_end)
+        return (trap_start, trap_end)
 
-        ## STEP 2. Generate a list of transition waypoints
+    def mark_traps_unvisited(self):
+        for node in self.graph_traps:
+            node.visited = False
 
-        self.waypoints = [start_point]
+    def find_seq_to_end(self, trap_sequence):
+        """
+        Returns True if a sequence to the next cell was successfully
+        found (i.e. trap_sequence is now complete), False otherwise.
+        """
+        trap_curr = trap_sequence[-1]
+        trap_curr.visited = True
+        if trap_curr is self.trap_end:
+            return True
+
+        neighbors = []
+        for edge in trap_curr.edges:
+            if edge.node_a is trap_curr:
+                neighbor = edge.node_b
+            else:
+                neighbor = edge.node_a
+            if not neighbor.visited:
+                neighbors.append(neighbor)
+
+        neighbors.sort(key=lambda n : n.polygon.distance(
+                                              self.trap_end.polygon))
+        for neighbor in neighbors:
+            trap_sequence.append(neighbor)
+            success = self.find_seq_to_end(trap_sequence)
+            if success:
+                return True
+            else:
+                trap_sequence.pop()
+
+        return False
+
+    def generate_waypoints(self, trap_sequence):
+        self.waypoints = [self.start_point]
         trap_index = 0
 
         while True:
             # try to go directly to target
-            # TODO: deal with case were, even once in the final
+            # TODO: deal with case where, even once in the final
             # cell, the drone isn't able to fly directly to the
-            # target for some reason
+            # target for some reason. This should never happen, but
+            # given the potential imprecision of shapely, it seems
+            # worth checking for.
             current_point = self.waypoints[-1]
-            if current_point.equals(end_point):
+            if current_point.equals(self.end_point):
                 break
 
             line = LineString([(current_point.x, current_point.y),
-                               (end_point.x, end_point.y)])
+                               (self.end_point.x, self.end_point.y)])
             assert line.is_valid
 
-            if eroded_polygon.contains(line):
-                self.waypoints.append(end_point)
+            if self.eroded_polygon.contains(line):
+                self.waypoints.append(self.end_point)
                 break
 
             curr_trap = trap_sequence[trap_index]
@@ -90,7 +161,7 @@ class Transition:
 
             border = edge.border_line
             passing_point = border.interpolate(border.project(
-                                                       end_point))
+                                                     self.end_point))
             if curr_trap.eroded != None:
                 exterior = curr_trap.eroded.exterior
                 point = exterior.interpolate(exterior.project(
@@ -107,48 +178,17 @@ class Transition:
 
             trap_index += 1
 
-        # Calculate the length of this transition
+    def update_length(self):
+        """
+        Set the self.length property to the total of all the
+        straight-line distances between consecutive waypoints in this
+        transition
+        """
         self.length = 0
         prev_point = self.waypoints[0]
         for point in self.waypoints[1:]:
             self.length += prev_point.distance(point)
             prev_point = point
-
-    def find_seq_to_next_cell(self, trap_sequence, trap_end):
-        """
-        Returns True if a sequence to the next cell was successfully
-        found (i.e. trap_sequence is now complete), False otherwise.
-        """
-        trap_start = trap_sequence[-1]
-        if trap_start is trap_end:
-            return True
-
-        neighbors = []
-        for edge in trap_start.edges:
-            if edge.node_a is trap_start:
-                neighbor = edge.node_b
-            else:
-                neighbor = edge.node_a
-            if not neighbor.visited:
-                neighbors.append(neighbor)
-
-        neighbors.sort(key=lambda n : n.polygon.distance(
-                                                trap_end.polygon))
-        for neighbor in neighbors:
-            trap_sequence.append(neighbor)
-            neighbor.visited = True
-            success = self.find_seq_to_next_cell(trap_sequence,
-                                                 trap_end)
-            if success:
-                return True
-            else:
-                trap_sequence.pop()
-
-        return False
-
-    def mark_traps_unvisited(self):
-        for node in self.graph_traps:
-            node.visited = False
 
     def start_point(self):
         return self.waypoints[0]
@@ -168,8 +208,22 @@ def rotate_path(path, angle, origin):
 
 class CompletePath:
     """
-    A coverage path for an entire field, comprising a list of
-    coverage paths for each of its cells.
+    A coverage path for an entire field.
+
+    The coverage path is represented as a list of CellPaths and a
+    list of Transitions. Each CellPath contains the waypoints to
+    cover a given cell. Each Transition contains the waypoints to
+    move from that cell to the subsequent cell without exiting the
+    bounds of the field or touching obstacles.
+
+    The drone should follow the CellPath at self.cells[0], followed
+    by the transition at self.transitions[0], then the path at
+    cells[1], transition at transitions[1], etc. The transition at
+    index i is always intended to follow the path at index i. In
+    order to ensure this, the user of this class should alternate calls
+    to add_cell() and add_transition(), starting with add_transition()
+    (since the first cell is added by the constructor). Not obeying
+    this alternation will cause an Exception to be raised.
     """
     def __init__(self, initial_cell, eroded_polygon):
         self.cells = [initial_cell] # list of CellPaths
