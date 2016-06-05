@@ -42,7 +42,7 @@ class Transition:
                         node.
         end_point:      The point at which the transition ends.
                         Should be within the end node.
-        graph_traps:    A list of CellTrap objects representing the
+        graph_traps:    A list of TrapNode objects representing the
                         graph of trapezoids, as returned by
                         cellgrapher.build_graph().
         eroded_polygon: The polygon representing the field, with its

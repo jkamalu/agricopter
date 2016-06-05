@@ -21,7 +21,7 @@ class CellNode:
     def add_edge(self, edge):
         self.edges.append(edge)
 
-class CellTrap:
+class TrapNode:
     def __init__(self, polygon, parent):
         self.polygon = polygon
         self.parent = parent
@@ -79,11 +79,11 @@ def decompose(field):
             index = i
 
     finalCellNodes, finalAngle, finalRotatePoint = decompositions[index]
-    finalCellTraps = []
+    finalTrapNodes = []
     for cell_node in finalCellNodes:
-        finalCellTraps.extend(decompose_further(cell_node))
+        finalTrapNodes.extend(decompose_further(cell_node))
 
-    return (finalCellNodes, finalCellTraps, finalAngle, finalRotatePoint)
+    return (finalCellNodes, finalTrapNodes, finalAngle, finalRotatePoint)
 
 def decompose_helper(polygon):
     """
@@ -164,7 +164,7 @@ def decompose_further(cell_node):
     
     sorted_indices = sort_indices(coords, start_line)
 
-    cell_traps = []
+    trap_nodes = []
     for index in sorted_indices:
         point = Point(coords[index])
 
@@ -172,21 +172,21 @@ def decompose_further(cell_node):
         new_polygon = box.intersection(cell_polygon)
 
         if isinstance(new_polygon, Polygon):
-            cell_trap = CellTrap(new_polygon, parent=cell_node)
-            cell_node.add_child(cell_trap)
-            cell_traps.append(cell_trap)
+            trap_node = TrapNode(new_polygon, parent=cell_node)
+            cell_node.add_child(trap_node)
+            trap_nodes.append(trap_node)
         elif (isinstance(new_polygon, GeometryCollection) or
               isinstance(new_polygon, MultiPolygon)):
             for item in new_polygon:
                 if isinstance(item, Polygon):
-                    cell_trap = CellTrap(item, parent=cell_node)
-                    cell_node.add_child(cell_trap)
-                    cell_traps.append(cell_trap)
+                    trap_node = TrapNode(item, parent=cell_node)
+                    cell_node.add_child(trap_node)
+                    trap_nodes.append(trap_node)
 
         remainder_box = end_line.union(point).envelope
         cell_polygon = cell_polygon.intersection(remainder_box)
         
-    return cell_traps
+    return trap_nodes
 
 def get_coords(polygon):
     coords = polygon.exterior.coords

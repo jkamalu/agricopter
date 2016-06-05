@@ -4,7 +4,7 @@
 
 from shapely.geometry import Polygon, LineString
 
-from decompose import (CellNode, CellTrap, Edge)
+from decompose import (CellNode, TrapNode, Edge)
 
 def build_graph(cells):
 	"""
@@ -12,9 +12,9 @@ def build_graph(cells):
 	Polygon object in cells. Polygons which share a border share a common
 	CellEdge instance.
 	
-	Accepts: cells, a list of CellNode or CellTrap instances as defined in decompose.py,
+	Accepts: cells, a list of CellNode or TrapNode instances as defined in decompose.py,
 			 'visited' set to False and 'edges' still empty.
-	Returns: a list of initialized CellNode or CellTrap instances representing a graph
+	Returns: a list of initialized CellNode or TrapNode instances representing a graph
 			 of polygons and their shared borders.
 	"""
 	for cell_i in range(0, len(cells)):		
