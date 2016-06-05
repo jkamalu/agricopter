@@ -15,7 +15,6 @@ def plan_complete_coverage_mission(polygon, path_radius,
     # Generate adjacencey graphs for the cells and trapezoids
     graph_nodes = cellgrapher.build_graph(nodes)
     graph_traps = cellgrapher.build_graph(traps)
-    cellgrapher.debug_print_graph(graph_nodes)
 
     # Find a sequence that travels through the graph of cells,
     # visiting each at least once
