@@ -2,20 +2,30 @@ import shapely
 from shapely.geometry import Polygon
 from matplotlib import pyplot
 
+# Let Python search for modules in the containing directory
+import os, sys
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.dirname(CURRENT_DIR)
+sys.path.append(PARENT_DIR)
+
 import parsepolygon
 from missionplanner import plan_complete_coverage_mission
+import testfields
 
-INPUT_FILE = "test_fields/test4.txt"
 DRONE_RADIUS = .00002
 DRONE_ELEVATION = 10
 
-exterior = [(0,0,0),(0,.001,0),(.0012,.0012,0),(.001,-.0002,0)]
-interior = [(.0002,.0002,0),(.0005,.0002,0),(.0003,.0006,0)]
-test_with_interior = Polygon(exterior, [interior])
-
 if __name__ == '__main__':
-    polygon = parsepolygon.parse_polygon(INPUT_FILE)
-#    polygon = test_with_interior
+    testfield = testfields.test5 # choose any test available in
+                                 # testfields.py
+    exterior = [(point["lat"], point["lon"])
+                    for point in testfield["exterior"]]
+    interiors = []
+    for obstacle in testfield["obstacles"]:
+        interiors.append([(point["lat"], point["lon"])
+                            for point in obstacle])
+
+    polygon = Polygon(exterior, interiors)
 
     visualization_data, mission = plan_complete_coverage_mission(
                                            polygon, DRONE_RADIUS,
