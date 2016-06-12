@@ -16,7 +16,8 @@ test1 = {
         { "lat": 30.0000, "lon": 43.0006 }
     ],
     "obstacles": [],
-    "alt": 3
+    "alt": 3,
+    "radius": 3
 }
 
 # ISEP coordinates
@@ -29,7 +30,8 @@ test2 = {
         { "lat": 48.82440280806693, "lon": 2.2793278098106384 }
     ],
     "obstacles": [],
-    "alt": 3
+    "alt": 3,
+    "radius": 3
 }
 
 # H-shaped field
@@ -52,7 +54,8 @@ test3 = {
         { "lat": 0.0003, "lon": 0.0015 }
     ],
     "obstacles": [],
-    "alt": 3
+    "alt": 3,
+    "radius": 3
 }
 
 # Very ugly, complex field
@@ -76,11 +79,9 @@ test4 = {
         { "lat": 0.0026, "lon": 0.000210 }
     ],
     "obstacles": [],
-    "alt": 3
+    "alt": 3,
+    "radius": 3
 }
-
-exterior = [(0,0,0),(0,.001,0),(.0012,.0012,0),(.001,-.0002,0)]
-interior = [(.0002,.0002,0),(.0005,.0002,0),(.0003,.0006,0)]
 
 # Field with obstacle in it
 test5 = {
@@ -98,5 +99,6 @@ test5 = {
             { "lat": 30.0003, "lon": 40.0006 }
         ]
     ],
-    "alt": 3
+    "alt": 3,
+    "radius": 3
 }

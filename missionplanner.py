@@ -1,11 +1,21 @@
 import shapely.affinity
+from shapely.geometry import Polygon
 
 import decompose
 import cellgrapher
 import celllinker
 import oxpath
 
-def plan_complete_coverage_mission(polygon, path_radius):
+def plan_complete_coverage_mission(params):
+    # Generate a shapely Polygon from the exterior and interior points
+    exterior = [(point["lat"], point["lon"])
+                    for point in params["exterior"]]
+    interiors = []
+    for obstacle in params["obstacles"]:
+        interiors.append([(point["lat"], point["lon"])
+                             for point in obstacle])
+    polygon = Polygon(exterior, interiors)
+
     # Decompose the polygon into cells and trapezoids
     nodes, traps, angle, rotate_point = decompose.decompose(polygon)
 
@@ -21,7 +31,7 @@ def plan_complete_coverage_mission(polygon, path_radius):
     # used by a drone to cover the entirety of the given polygon
     rotated_polygon = shapely.affinity.rotate(
         polygon, angle, origin=rotate_point)
-    path = oxpath.generate_path(stack, path_radius,
+    path = oxpath.generate_path(stack, params["radius"],
                                 rotated_polygon, graph_traps)
 
     # Rotate this path back to the original orientation
