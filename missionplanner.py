@@ -5,10 +5,7 @@ import cellgrapher
 import celllinker
 import oxpath
 
-from Mission import (Mission, Command)
-
-def plan_complete_coverage_mission(polygon, path_radius,
-                                   drone_elevation):
+def plan_complete_coverage_mission(polygon, path_radius):
     # Decompose the polygon into cells and trapezoids
     nodes, traps, angle, rotate_point = decompose.decompose(polygon)
 
@@ -39,15 +36,11 @@ def plan_complete_coverage_mission(polygon, path_radius,
         waypoints += path.cells[i].waypoints
         waypoints += path.transitions[i].waypoints
 
-    # Create a mission containing all of these waypoints
-    mission = Mission()
-    for waypoint in waypoints:
-        mission.add_command(Command(16, waypoint.y, waypoint.x,
-                                    drone_elevation))
+    mission = [{ "x": waypoint.x, "y": waypoint.y }
+               for waypoint in waypoints]
 
-    # Along with the mission, return a dictionary with some
-    # data structures that allow the client to generate a
-    # visualization of the algorithm
+    # Return a dictionary with some data structures that allow the
+    # client to generate a visualization of the algorithm's output
     visualization_data = {
         'waypoints': waypoints,
         'graph_nodes': graph_nodes,

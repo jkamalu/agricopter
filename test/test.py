@@ -13,7 +13,6 @@ from missionplanner import plan_complete_coverage_mission
 import testfields
 
 DRONE_RADIUS = .00002
-DRONE_ELEVATION = 10
 
 if __name__ == '__main__':
     testfield = testfields.test5 # choose any test available in
@@ -28,10 +27,7 @@ if __name__ == '__main__':
     polygon = Polygon(exterior, interiors)
 
     visualization_data, mission = plan_complete_coverage_mission(
-                                           polygon, DRONE_RADIUS,
-                                           DRONE_ELEVATION)
-    mission.export_to_file('test_output.waypoints')
-
+                                           polygon, DRONE_RADIUS)
 
     #############################################################
     # The remaining code exists for visualization purposes only #
