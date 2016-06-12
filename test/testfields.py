@@ -17,7 +17,7 @@ test1 = {
     ],
     "obstacles": [],
     "alt": 3,
-    "radius": 3
+    "radius": 2
 }
 
 # ISEP coordinates
@@ -31,7 +31,7 @@ test2 = {
     ],
     "obstacles": [],
     "alt": 3,
-    "radius": 3
+    "radius": 2
 }
 
 # H-shaped field
@@ -55,7 +55,7 @@ test3 = {
     ],
     "obstacles": [],
     "alt": 3,
-    "radius": 3
+    "radius": 2
 }
 
 # Very ugly, complex field
@@ -80,7 +80,7 @@ test4 = {
     ],
     "obstacles": [],
     "alt": 3,
-    "radius": 3
+    "radius": 2
 }
 
 # Field with obstacle in it
@@ -100,5 +100,5 @@ test5 = {
         ]
     ],
     "alt": 3,
-    "radius": 3
+    "radius": 2
 }

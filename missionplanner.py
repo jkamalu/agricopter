@@ -1,19 +1,29 @@
 import shapely.affinity
 from shapely.geometry import Polygon
 
+import coordtransform
 import decompose
 import cellgrapher
 import celllinker
 import oxpath
 
 def plan_complete_coverage_mission(params):
-    # Generate a shapely Polygon from the exterior and interior points
+    # Extract lists of exterior and interior points
     exterior = [(point["lat"], point["lon"])
                     for point in params["exterior"]]
     interiors = []
     for obstacle in params["obstacles"]:
         interiors.append([(point["lat"], point["lon"])
                              for point in obstacle])
+
+    # Convert lists from latitude/longitude to meters relative to the
+    # home point
+    home = (params["home"]["lat"], params["home"]["lon"])
+    coordtransform.latlon_to_meters(exterior, home)
+    for interior in interiors:
+        coordtransform.latlon_to_meters(interior, home)
+
+    # Generate a shapely Polygon representing the field
     polygon = Polygon(exterior, interiors)
 
     # Decompose the polygon into cells and trapezoids
@@ -52,6 +62,7 @@ def plan_complete_coverage_mission(params):
     # Return a dictionary with some data structures that allow the
     # client to generate a visualization of the algorithm's output
     visualization_data = {
+        'polygon': polygon,
         'waypoints': waypoints,
         'graph_nodes': graph_nodes,
         'graph_traps': graph_traps,
