@@ -9,7 +9,6 @@ from random import shuffle
 import shapely
 from shapely.geometry import Polygon
 
-import parsepolygon
 import decompose
 import cellgrapher
 
