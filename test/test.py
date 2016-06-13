@@ -1,5 +1,5 @@
 import shapely
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, Point
 from matplotlib import pyplot
 
 # Let Python search for modules in the parent directory
@@ -26,6 +26,8 @@ if __name__ == '__main__':
     for var, val in visualization_data.iteritems():
         locals()[var] = val
 
+    rotate_point = Point(0, 0)
+
     fig = pyplot.figure(1, figsize=(5,5), dpi=90)
     ax = fig.add_subplot(111)
 
@@ -37,7 +39,7 @@ if __name__ == '__main__':
         x, y = interior.xy
         ax.plot(x, y, 'b', linewidth=2)
 
-    for node in graph_nodes:
+    for node in cells:
         # Rotate cells back to original orientation
         node.polygon = shapely.affinity.rotate(node.polygon,
                                      -angle, origin=rotate_point)
@@ -54,7 +56,7 @@ if __name__ == '__main__':
                 fontsize=8, verticalalignment='center',
                 horizontalalignment='center')
 
-    ax.text(waypoints[0].x, waypoints[0].y, "X",
+    ax.text(0, 0, "H", # Home point
             fontsize=10, verticalalignment='center',
             horizontalalignment='center')
 

@@ -17,12 +17,8 @@ class CellPath:
         waypoints: a list of shapely Point objects
         """
         self.waypoints = waypoints
-
-    def start_point(self):
-        return self.waypoints[0]
-
-    def end_point(self):
-        return self.waypoints[-1]
+        self.start_point = waypoints[0]
+        self.end_point = waypoints[-1]
 
 class Transition:
     """
@@ -190,12 +186,6 @@ class Transition:
             self.length += prev_point.distance(point)
             prev_point = point
 
-    def start_point(self):
-        return self.waypoints[0]
-
-    def end_point(self):
-        return self.waypoints[-1]
-
 def rotate_path(path, angle, origin):
     """
     Rotate all the waypoints in a cell path or transition by the
@@ -216,24 +206,32 @@ class CompletePath:
     move from that cell to the subsequent cell without exiting the
     bounds of the field or touching obstacles.
 
-    The drone should follow the CellPath at self.cells[0], followed
-    by the transition at self.transitions[0], then the path at
-    cells[1], transition at transitions[1], etc. The transition at
-    index i is always intended to follow the path at index i. In
+    The drone should follow the Transition at self.transitions[0],
+    followed by the CellPath at self.cells[0], then the transition at
+    transitions[1], cell at cells[1], etc. The cell at index i
+    is always intended to follow the transition at index i. In
     order to ensure this, the user of this class should alternate calls
     to add_cell() and add_transition(), starting with add_transition()
-    (since the first cell is added by the constructor). Not obeying
-    this alternation will cause an Exception to be raised.
+    (since the first transition and cell are added by the constructor).
+    Not obeying this alternation will cause an Exception to be raised.
     """
-    def __init__(self, initial_cell, eroded_polygon):
-        self.cells = [initial_cell] # list of CellPaths
-        self.transitions = [] # list of transitions
-        self.length = 0 # total length of transitions
-                        # between cells (i.e. not including the
-                        # distance spent covering each cell, just
-                        # the distance going from one cell to
-                        # the next one)
+    def __init__(self, initial_cell, graph_traps, initial_cell_path,
+                 eroded_polygon):
+        self.transitions = []
+        self.cells = []
+        self.length = 0 # total length of
+                        # transitions between cells (i.e. not
+                        # including the distance spent covering each
+                        # cell, just the distance going from one cell
+                        # to the next one)
         self.polygon = eroded_polygon
+
+        # Add transition from home point (0, 0) to start point
+        self.add_transition(initial_cell, initial_cell, Point(0, 0),
+            initial_cell_path.start_point, graph_traps)
+
+        # Add coverage path for first cell
+        self.add_cell_path(initial_cell_path)
 
     def cells_traversed(self):
         return len(self.cells)
@@ -246,16 +244,16 @@ class CompletePath:
         self.cells.append(cell_path)
 
     def start_point(self):
-        return self.cells[0].start_point()
+        return self.transitions[0].start_point
 
     def end_point(self):
         if self.has_transition():
-            return self.transitions[-1].end_point()
+            return self.transitions[-1].end_point
         else:
-            return self.cells[-1].end_point()
+            return self.cells[-1].end_point
 
     def has_transition(self):
-        return len(self.cells) == len(self.transitions)
+        return len(self.transitions) == len(self.cells) + 1
 
     def add_transition(self, this_node, next_node,
                        start_point, end_point, graph_traps):
@@ -398,8 +396,9 @@ def generate_path(stack, path_radius, polygon, graph_traps):
     # heap is a priority queue containing partially complete coverage
     # paths, prioritized so that a pop will remove the shortest path
     heap = []
-    for initial_cell in cell_paths[0]:
-        heappush(heap, (0, CompletePath(initial_cell,
+    for initial_cell_path in cell_paths[0]:
+        heappush(heap, (0, CompletePath(stack[0], graph_traps,
+                                        initial_cell_path,
                                         eroded_polygon)))
 
     while True:
@@ -423,7 +422,7 @@ def generate_path(stack, path_radius, polygon, graph_traps):
             new_path = path.copy()
             new_path.add_transition(stack[index-1], stack[index],
                                     new_path.end_point(),
-                                    cell_path.start_point(),
+                                    cell_path.start_point,
                                     graph_traps)
             new_path.add_cell_path(cell_path)
             heappush(heap, (new_path.length, new_path))

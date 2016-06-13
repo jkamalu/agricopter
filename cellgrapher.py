@@ -9,13 +9,12 @@ from decompose import (CellNode, TrapNode, Edge)
 def build_graph(cells):
 	"""
 	build_graph generates a graph to represent the relationship between every
-	Polygon object in cells. Polygons which share a border share a common
-	CellEdge instance.
+	Polygon object in cells. cells is modified in place so that Polygons have
+	a list of their edges, as Edge objects, and Polygons which share a border
+	share a common Edge instance.
 	
 	Accepts: cells, a list of CellNode or TrapNode instances as defined in decompose.py,
 			 'visited' set to False and 'edges' still empty.
-	Returns: a list of initialized CellNode or TrapNode instances representing a graph
-			 of polygons and their shared borders.
 	"""
 	for cell_i in range(0, len(cells)):		
 		for cell_j in range(cell_i + 1, len(cells)):
@@ -23,8 +22,6 @@ def build_graph(cells):
 			# children share a border. This will be the only border they share
 			# and therefore shared also among each parent
 			compare_cell_nodes(cells[cell_i], cells[cell_j])
-
-	return cells
 
 def compare_cell_nodes(cell_node1, cell_node2):
 	"""

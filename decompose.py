@@ -45,7 +45,7 @@ def decompose(field):
     "best" rotation angle based on a simple heuristic (described
     in the code below).
 
-    Returns a tuple: (best_decomposition, angle, rotate_point)
+    Returns a tuple: (best_decomposition, angle)
      -- best_decomposition is a list of Polygon objects
         that represent the cells of the decomposition. These
         polygons will still be rotated by the given angle when
@@ -55,18 +55,18 @@ def decompose(field):
         mission.
      -- angle is the angle by which the polygon was rotated in the
         best decomposition. It follows the convention of a unit
-        circle (i.e. an increasing angle means rotating CCW).
-     -- rotate_point is the point about which the polygon was
-        rotated. In order to get the returned polygons back to
-        their original orientation, they need to be rotated
-        -angle degrees about the rotate_point.
+        circle (i.e. an increasing angle means rotating CCW). The
+        polygon is rotated about the origin, Point(0, 0). In order
+        to get the returned polygons back to their original
+        orientation, they need to be rotated -angle degrees about
+        (0, 0).
     """
     decompositions = []
     for angle in xrange(0, 180, 15):
-        rotate_point = field.representative_point()
-        polygon = shapely.affinity.rotate(Polygon(field), angle, origin=rotate_point)
+        rotate_point = Point(0, 0)
+        polygon = shapely.affinity.rotate(field, angle, origin=rotate_point)
         decomposition = decompose_helper(polygon)
-        decompositions.append((decomposition, angle, rotate_point))
+        decompositions.append((decomposition, angle))
 
     # Choose the best decomposition, using the size of the
     # smallest polygon in the decomposition as a heuristic, and
@@ -78,12 +78,12 @@ def decompose(field):
             max_heuristic = heuristic
             index = i
 
-    finalCellNodes, finalAngle, finalRotatePoint = decompositions[index]
+    finalCellNodes, finalAngle = decompositions[index]
     finalTrapNodes = []
     for cell_node in finalCellNodes:
         finalTrapNodes.extend(decompose_further(cell_node))
 
-    return (finalCellNodes, finalTrapNodes, finalAngle, finalRotatePoint)
+    return (finalCellNodes, finalTrapNodes, finalAngle)
 
 def decompose_helper(polygon):
     """
